@@ -14,6 +14,10 @@ public class IngestionService {
         this.productRepository = productRepository;
     }
 
+    public List<StagingProduct> getProducts() {
+        return productRepository.findAll();
+    }
+
     public void saveProducts(List<ProductDTO> products, String pharmacyId, String apiKey) {
             if (!apiKey.equals("TRAMEDNYARUGENGE-2026")) {
         throw new RuntimeException("Unauthorized: invalid API key");

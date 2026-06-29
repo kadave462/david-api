@@ -2,6 +2,7 @@ package com.example.david_api.ingestion.controller;
 
 import com.example.david_api.ingestion.service.*;
 import com.example.david_api.ingestion.dto.ProductDTO;
+import com.example.david_api.ingestion.entity.StagingProduct;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +15,11 @@ public class IngestionController {
 
     public IngestionController(IngestionService ingestionService) {
         this.ingestionService = ingestionService;
+    }
+
+    @GetMapping("/products")
+    public ResponseEntity<List<StagingProduct>> getProducts() {
+        return ResponseEntity.ok(ingestionService.getProducts());
     }
 
     @PostMapping("/products")
