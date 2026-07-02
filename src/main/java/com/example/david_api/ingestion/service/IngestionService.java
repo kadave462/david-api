@@ -114,19 +114,19 @@ public class IngestionService {
             entity.setPharmacyId(pharmacyId);
             entity.setHmac(dto.getHmac());
             entity.setStockLocationId(dto.getStockLocationId());
-            entity.setIdProduct(dto.getIdProduct());
-            entity.setNameProduct(dto.getNameProduct());
-            entity.setIdLotS(dto.getIdLotS());
-            entity.setDateExp(dto.getDateExp());
-            entity.setQtyStart(dto.getQtyStart());
-            entity.setQtyLive(dto.getQtyLive());
-            entity.setBonLivraison(dto.getBonLivraison());
-            entity.setNumClient(dto.getNumClient());
-            entity.setIdLot(dto.getIdLot());
-            entity.setRevient(dto.getRevient());
-            entity.setCode(dto.getCode());
+            entity.setItemId(dto.getItemId());
+            entity.setItemName(dto.getItemName());
+            entity.setBatchNumber(dto.getBatchNumber());
+            entity.setExpirationDate(dto.getExpirationDate());
+            entity.setInitialQuantity(dto.getInitialQuantity());
+            entity.setQuantity(dto.getQuantity());
+            entity.setUnitCost(dto.getUnitCost());
+            entity.setUnitPrice(dto.getUnitPrice());
+            entity.setSupplierName(dto.getSupplierName());
+            entity.setReference(dto.getReference());
+            entity.setItemCode(dto.getItemCode());
             entity.setEmployee(dto.getEmployee());
-            entity.setPrix(dto.getPrix());
+            entity.setIdLot(dto.getIdLot());
             stockRepository.save(entity);
         }
     }

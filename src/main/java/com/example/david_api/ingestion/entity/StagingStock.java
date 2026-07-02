@@ -14,19 +14,19 @@ public class StagingStock {
     private String pharmacyId;
     private String hmac;
     private Integer stockLocationId;
-    private Integer idProduct;
-    private String nameProduct;
-    private String idLotS;
-    private String dateExp;
-    private Integer qtyStart;
-    private Integer qtyLive;
-    private String bonLivraison;
-    private String numClient;
-    private String idLot;
-    private Double revient;
-    private String code;
+    private Integer itemId;
+    private String itemName;
+    private String batchNumber;
+    private String expirationDate;
+    private Integer initialQuantity;
+    private Integer quantity;
+    private Double unitCost;
+    private Double unitPrice;
+    private String supplierName;
+    private String reference;
+    private String itemCode;
     private String employee;
-    private Double prix;
+    private String idLot;
     private LocalDateTime syncedAt;
 
     public StagingStock() {
@@ -44,44 +44,44 @@ public class StagingStock {
     public Integer getStockLocationId() { return stockLocationId; }
     public void setStockLocationId(Integer stockLocationId) { this.stockLocationId = stockLocationId; }
 
-    public Integer getIdProduct() { return idProduct; }
-    public void setIdProduct(Integer idProduct) { this.idProduct = idProduct; }
+    public Integer getItemId() { return itemId; }
+    public void setItemId(Integer itemId) { this.itemId = itemId; }
 
-    public String getNameProduct() { return nameProduct; }
-    public void setNameProduct(String nameProduct) { this.nameProduct = nameProduct; }
+    public String getItemName() { return itemName; }
+    public void setItemName(String itemName) { this.itemName = itemName; }
 
-    public String getIdLotS() { return idLotS; }
-    public void setIdLotS(String idLotS) { this.idLotS = idLotS; }
+    public String getBatchNumber() { return batchNumber; }
+    public void setBatchNumber(String batchNumber) { this.batchNumber = batchNumber; }
 
-    public String getDateExp() { return dateExp; }
-    public void setDateExp(String dateExp) { this.dateExp = dateExp; }
+    public String getExpirationDate() { return expirationDate; }
+    public void setExpirationDate(String expirationDate) { this.expirationDate = expirationDate; }
 
-    public Integer getQtyStart() { return qtyStart; }
-    public void setQtyStart(Integer qtyStart) { this.qtyStart = qtyStart; }
+    public Integer getInitialQuantity() { return initialQuantity; }
+    public void setInitialQuantity(Integer initialQuantity) { this.initialQuantity = initialQuantity; }
 
-    public Integer getQtyLive() { return qtyLive; }
-    public void setQtyLive(Integer qtyLive) { this.qtyLive = qtyLive; }
+    public Integer getQuantity() { return quantity; }
+    public void setQuantity(Integer quantity) { this.quantity = quantity; }
 
-    public String getBonLivraison() { return bonLivraison; }
-    public void setBonLivraison(String bonLivraison) { this.bonLivraison = bonLivraison; }
+    public Double getUnitCost() { return unitCost; }
+    public void setUnitCost(Double unitCost) { this.unitCost = unitCost; }
 
-    public String getNumClient() { return numClient; }
-    public void setNumClient(String numClient) { this.numClient = numClient; }
+    public Double getUnitPrice() { return unitPrice; }
+    public void setUnitPrice(Double unitPrice) { this.unitPrice = unitPrice; }
 
-    public String getIdLot() { return idLot; }
-    public void setIdLot(String idLot) { this.idLot = idLot; }
+    public String getSupplierName() { return supplierName; }
+    public void setSupplierName(String supplierName) { this.supplierName = supplierName; }
 
-    public Double getRevient() { return revient; }
-    public void setRevient(Double revient) { this.revient = revient; }
+    public String getReference() { return reference; }
+    public void setReference(String reference) { this.reference = reference; }
 
-    public String getCode() { return code; }
-    public void setCode(String code) { this.code = code; }
+    public String getItemCode() { return itemCode; }
+    public void setItemCode(String itemCode) { this.itemCode = itemCode; }
 
     public String getEmployee() { return employee; }
     public void setEmployee(String employee) { this.employee = employee; }
 
-    public Double getPrix() { return prix; }
-    public void setPrix(Double prix) { this.prix = prix; }
+    public String getIdLot() { return idLot; }
+    public void setIdLot(String idLot) { this.idLot = idLot; }
 
     public LocalDateTime getSyncedAt() { return syncedAt; }
     public void setSyncedAt(LocalDateTime syncedAt) { this.syncedAt = syncedAt; }
