@@ -78,7 +78,12 @@ public class IngestionController {
 
         ingestionService.saveProducts(products, pharmacyId, apiKey);
         return ResponseEntity.ok("Products received: " + products.size());
-    
+
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return ResponseEntity.ok("OK");
     }
 
 }
