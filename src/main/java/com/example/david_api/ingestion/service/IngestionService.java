@@ -15,6 +15,7 @@ import com.example.david_api.ingestion.repository.StagingProductRepository;
 import com.example.david_api.ingestion.repository.StagingSaleLineRepository;
 import com.example.david_api.ingestion.repository.StagingSaleRepository;
 import com.example.david_api.ingestion.repository.StagingStockRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -25,6 +26,9 @@ public class IngestionService {
     private final StagingSaleRepository saleRepository;
     private final StagingSaleLineRepository saleLineRepository;
     private final StagingStockRepository stockRepository;
+
+    @Value("${app.api-key}")
+    private String configuredApiKey;
 
     public IngestionService(StagingProductRepository productRepository,
                             StagingClientRepository clientRepository,
@@ -51,7 +55,7 @@ public class IngestionService {
     }
 
     public void saveSales(List<SaleDTO> sales, String pharmacyId, String apiKey) {
-        if (!apiKey.equals("TRAMEDNYARUGENGE-2026")) {
+        if (!apiKey.equals(configuredApiKey)) {
             throw new RuntimeException("Unauthorized: invalid API key");
         }
         for (SaleDTO dto : sales) {
@@ -88,7 +92,7 @@ public class IngestionService {
     }
 
     public void saveClients(List<ClientDTO> clients, String pharmacyId, String apiKey) {
-        if (!apiKey.equals("TRAMEDNYARUGENGE-2026")) {
+        if (!apiKey.equals(configuredApiKey)) {
             throw new RuntimeException("Unauthorized: invalid API key");
         }
         for (ClientDTO dto : clients) {
@@ -112,10 +116,13 @@ public class IngestionService {
     }
 
     public void saveStock(List<StockDTO> stockList, String pharmacyId, String apiKey) {
-        if (!apiKey.equals("TRAMEDNYARUGENGE-2026")) {
+        if (!apiKey.equals(configuredApiKey)) {
             throw new RuntimeException("Unauthorized: invalid API key");
         }
         for (StockDTO dto : stockList) {
+            if (stockRepository.existsByHmacAndPharmacyId(dto.getHmac(), pharmacyId)) {
+                continue;
+            }
             StagingStock entity = new StagingStock();
             entity.setPharmacyId(pharmacyId);
             entity.setHmac(dto.getHmac());
@@ -138,9 +145,9 @@ public class IngestionService {
     }
 
     public void saveProducts(List<ProductDTO> products, String pharmacyId, String apiKey) {
-            if (!apiKey.equals("TRAMEDNYARUGENGE-2026")) {
-        throw new RuntimeException("Unauthorized: invalid API key");
-    }
+        if (!apiKey.equals(configuredApiKey)) {
+            throw new RuntimeException("Unauthorized: invalid API key");
+        }
         for (ProductDTO dto : products) {
             if (productRepository.existsBySourceProductIdAndPharmacyId(dto.getSourceProductId(), pharmacyId)) {
                 continue;

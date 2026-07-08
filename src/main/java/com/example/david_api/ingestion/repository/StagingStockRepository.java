@@ -6,5 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface StagingStockRepository extends JpaRepository<StagingStock, Long> {
-
+    boolean existsByHmacAndPharmacyId(String hmac, String pharmacyId);
 }
