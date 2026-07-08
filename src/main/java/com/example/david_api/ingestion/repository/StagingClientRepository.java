@@ -7,4 +7,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface StagingClientRepository extends JpaRepository<StagingClient, Long> {
 
+    boolean existsBySourceAffiliationNumAndPharmacyId(String sourceAffiliationNum, String pharmacyId);
+
 }

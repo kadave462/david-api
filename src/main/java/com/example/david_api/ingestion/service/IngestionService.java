@@ -55,6 +55,9 @@ public class IngestionService {
             throw new RuntimeException("Unauthorized: invalid API key");
         }
         for (SaleDTO dto : sales) {
+            if (saleRepository.existsBySourceInvoiceIdAndPharmacyId(dto.getSourceInvoiceId(), pharmacyId)) {
+                continue;
+            }
             StagingSale sale = new StagingSale();
             sale.setPharmacyId(pharmacyId);
             sale.setSourceInvoiceId(dto.getSourceInvoiceId());
@@ -89,6 +92,9 @@ public class IngestionService {
             throw new RuntimeException("Unauthorized: invalid API key");
         }
         for (ClientDTO dto : clients) {
+            if (clientRepository.existsBySourceAffiliationNumAndPharmacyId(dto.getSourceAffiliationNum(), pharmacyId)) {
+                continue;
+            }
             StagingClient entity = new StagingClient();
             entity.setPharmacyId(pharmacyId);
             entity.setSourceAffiliationNum(dto.getSourceAffiliationNum());
@@ -136,6 +142,9 @@ public class IngestionService {
         throw new RuntimeException("Unauthorized: invalid API key");
     }
         for (ProductDTO dto : products) {
+            if (productRepository.existsBySourceProductIdAndPharmacyId(dto.getSourceProductId(), pharmacyId)) {
+                continue;
+            }
             StagingProduct entity = new StagingProduct();
             entity.setPharmacyId(pharmacyId);
             entity.setSourceProductId(dto.getSourceProductId());
