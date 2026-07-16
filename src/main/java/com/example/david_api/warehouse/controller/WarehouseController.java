@@ -64,6 +64,9 @@ public class WarehouseController {
         status.put("stock_last_synced", stagingStockRepo.findTopByOrderBySyncedAtDesc()
                 .map(s -> s.getSyncedAt().toString())
                 .orElse("no stock data yet"));
+        status.put("last_sale_line_received", stagingSaleLineRepo.findTopByOrderBySyncedAtDesc()
+                .map(s -> s.getSyncedAt().toString())
+                .orElse("no data yet"));
 
         return ResponseEntity.ok(status);
 
