@@ -1,0 +1,71 @@
+package com.example.david_api.warehouse.controller;
+
+import com.example.david_api.ingestion.repository.StagingClientRepository;
+import com.example.david_api.ingestion.repository.StagingProductRepository;
+import com.example.david_api.ingestion.repository.StagingSaleLineRepository;
+import com.example.david_api.warehouse.repository.DimClientRepository;
+import com.example.david_api.warehouse.repository.DimProductRepository;
+import com.example.david_api.warehouse.repository.FactSaleRepository;
+import com.example.david_api.ingestion.repository.StagingStockRepository;
+import com.example.david_api.ingestion.entity.StagingStock;
+
+import com.example.david_api.warehouse.service.WarehouseSyncService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/v1/warehouse")
+public class WarehouseController {
+    private final WarehouseSyncService warehouseSyncServiceA;
+    private final StagingProductRepository stagingProductRepo;
+    private final StagingClientRepository stagingClientRepo;
+    private final StagingSaleLineRepository stagingSaleLineRepo;
+    private final DimProductRepository dimProductRepo;
+    private final DimClientRepository dimClientRepo;
+    private final FactSaleRepository factSaleRepo;
+    private final StagingStockRepository stagingStockRepo;
+
+    public WarehouseController(
+            WarehouseSyncService warehouseSyncServiceB,
+            StagingProductRepository stagingProductRepo,
+            StagingClientRepository stagingClientRepo,
+            StagingSaleLineRepository stagingSaleLineRepo,
+            DimProductRepository dimProductRepo,
+            DimClientRepository dimClientRepo,
+            FactSaleRepository factSaleRepo,
+            StagingStockRepository stagingStockRepo) {
+        this.warehouseSyncServiceA = warehouseSyncServiceB;
+        this.stagingProductRepo = stagingProductRepo;
+        this.stagingClientRepo = stagingClientRepo;
+        this.stagingSaleLineRepo = stagingSaleLineRepo;
+        this.dimProductRepo = dimProductRepo;
+        this.dimClientRepo = dimClientRepo;
+        this.factSaleRepo = factSaleRepo;
+        this.stagingStockRepo = stagingStockRepo;
+    }
+
+    @PostMapping("/sync")
+    public ResponseEntity<String> triggerSync() {
+        warehouseSyncServiceA.sync();
+        return ResponseEntity.ok("Warehouse sync completed");
+    }
+
+    @GetMapping("/status")
+    public ResponseEntity<Map<String, Object>> getStatus() {
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("staging_products", stagingProductRepo.count());
+        status.put("staging_clients", stagingClientRepo.count());
+        status.put("staging_sale_lines", stagingSaleLineRepo.count());
+        status.put("dim_product", dimProductRepo.count());
+        status.put("dim_client", dimClientRepo.count());
+        status.put("fact_sale", factSaleRepo.count());
+        status.put("stock_last_synced", stagingStockRepo.findTopByOrderBySyncedAtDesc()
+                .map(s -> s.getSyncedAt().toString())
+                .orElse("no stock data yet"));
+
+        return ResponseEntity.ok(status);
+
+    }
+}
