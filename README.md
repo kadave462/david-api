@@ -2,7 +2,7 @@
 
 A Spring Boot REST API that collects pharmacy sales data from multiple branches, stores it in a PostgreSQL staging layer, and promotes it nightly into a Star Schema data warehouse for analytics and forecasting.
 
-Built for **TRAMED Nyarugenge**, a pharmacy network in Rwanda.
+Built for **TRAMED Nyarugenge**.
 
 ---
 
@@ -156,10 +156,6 @@ Live URL: `https://david-api-la1t.onrender.com`
 
 
 To trigger a manual sync from PowerShell:
-```powershell
-Invoke-WebRequest -Uri "https://david-api-la1t.onrender.com/api/v1/warehouse/sync" -Method POST
-```
-
 ---
 
 ## Security
