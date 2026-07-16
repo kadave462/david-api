@@ -2,6 +2,8 @@ package com.example.david_api.warehouse.service;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 
 import com.example.david_api.ingestion.entity.StagingClient;
 import com.example.david_api.ingestion.entity.StagingProduct;
@@ -19,9 +21,12 @@ import com.example.david_api.warehouse.repository.DimPharmacyRepository;
 import com.example.david_api.warehouse.repository.DimProductRepository;
 import com.example.david_api.warehouse.entity.DimDate;
 import com.example.david_api.warehouse.entity.FactSale;
+import com.example.david_api.warehouse.entity.SyncLog;
 import com.example.david_api.warehouse.repository.FactSaleRepository;
+import com.example.david_api.warehouse.repository.SyncLogRepository;
 import com.example.david_api.ingestion.entity.StagingSale;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -37,6 +42,7 @@ public class WarehouseSyncService {
     private final DimClientRepository dimClientRepo;
     private final DimProductRepository dimProductRepo;
     private final FactSaleRepository factSaleRepo;
+    private final SyncLogRepository syncLogRepo;
 
     public WarehouseSyncService(
             StagingProductRepository stagingProductRepo,
@@ -47,7 +53,8 @@ public class WarehouseSyncService {
             DimDateRepository dimDateRepo,
             DimClientRepository dimClientRepo,
             DimProductRepository dimProductRepo,
-            FactSaleRepository factSaleRepo) {
+            FactSaleRepository factSaleRepo,
+            SyncLogRepository syncLogRepo) {
         this.stagingProductRepo = stagingProductRepo;
         this.stagingClientRepo = stagingClientRepo;
         this.stagingSaleRepo = stagingSaleRepo;
@@ -57,6 +64,7 @@ public class WarehouseSyncService {
         this.dimClientRepo = dimClientRepo;
         this.dimProductRepo = dimProductRepo;
         this.factSaleRepo = factSaleRepo;
+        this.syncLogRepo = syncLogRepo;
     }
 
     public void syncPharmacies() {
@@ -115,16 +123,13 @@ public class WarehouseSyncService {
     }
 
     public void syncFacts() {
-        // get every sale line from staging
-        List<StagingSaleLine> lines = stagingSaleLineRepo.findAll();
+        // Step 1: Get the last sync time from the SyncLog table (if it
+        LocalDateTime lastSync = syncLogRepo.findById(1L)
+                .map(s -> s.getLastSyncedAt())
+                .orElse(LocalDateTime.MIN);
+        List<StagingSaleLine> lines = stagingSaleLineRepo.findBySyncedAtAfter(lastSync);
 
         for (StagingSaleLine line : lines) {
-
-            // skip this line if it already exists in fact_sale (dedup guard)
-            if (factSaleRepo.existsBySourceSaleLineId(line.getId())) {
-                continue;
-            }
-
             // fetch the parent sale (we need date, invoiceId, numClient from it) , if there
             // is no parent sale, skip , search the next id
             Optional<StagingSale> saleOpt = stagingSaleRepo.findById(line.getSaleId());
@@ -156,7 +161,7 @@ public class WarehouseSyncService {
             // Step 7: find the DimClient and get its id (nullable — client may be missing)
             Long clientId = dimClientRepo
                     .findBySourceAffiliationNumAndPharmacyId(sale.getNumClient(), line.getPharmacyId())
-                    .map(c -> c.getId()) //map the DimClient and saved in client id variable
+                    .map(c -> c.getId()) // map the DimClient and saved in client id variable
                     .orElse(null); // if there is no client, set clientId to null
 
             // Step 8: build the FactSale row and set all fields
@@ -165,20 +170,34 @@ public class WarehouseSyncService {
             fact.setProductId(productId); // FK to dim_product already extracted above line 156 (nullable)
             fact.setClientId(clientId); // FK to dim_client already extracted above line 159 (nullable)
             fact.setPharmacyId(line.getPharmacyId());
-            fact.setSourceSaleLineId(line.getId()); 
+            fact.setSourceSaleLineId(line.getId());
             fact.setSourceInvoiceId(sale.getSourceInvoiceId());
             fact.setQuantity(line.getQuantity());
             fact.setUnitPrice(line.getUnitPrice());
             fact.setCostPrice(line.getCostPrice());
             fact.setTva(line.getTva());
-            //We check both are not null first because if either is null, multiplying them would crash. 
+            // We check both are not null first because if either is null, multiplying them
+            // would crash.
             // If both exist → calculate. If either is missing → store null.
             fact.setTotalAmount(line.getQuantity() != null && line.getUnitPrice() != null
                     ? line.getQuantity() * line.getUnitPrice()
                     : null);
 
-            factSaleRepo.save(fact);  //we save everything to the fact_sale table,
+            factSaleRepo.save(fact); // we save everything to the fact_sale table,
         }
+
+        // Step 9: update the SyncLog table with the current timestamp
+        SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
+        
+        log.setId(1L);
+        log.setLastSyncedAt(LocalDateTime.now());
+        syncLogRepo.save(log);
+
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void syncOnStartup() {
+        sync();
     }
 
     @Scheduled(cron = "0 0 2 * * *")
@@ -190,18 +209,3 @@ public class WarehouseSyncService {
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
