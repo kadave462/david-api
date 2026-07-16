@@ -156,10 +156,6 @@ Live URL: `https://david-api-la1t.onrender.com`
 
 
 To trigger a manual sync from PowerShell:
-```powershell
-Invoke-WebRequest -Uri "https://david-api-la1t.onrender.com/api/v1/warehouse/sync" -Method POST
-```
-
 ---
 
 ## Security
