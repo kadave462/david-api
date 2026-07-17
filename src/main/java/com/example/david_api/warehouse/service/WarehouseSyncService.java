@@ -130,6 +130,8 @@ public class WarehouseSyncService {
         List<StagingSaleLine> lines = stagingSaleLineRepo.findBySyncedAtAfter(lastSync);
 
         for (StagingSaleLine line : lines) {
+                if (factSaleRepo.existsBySourceSaleLineId(line.getId())) continue;
+
             // fetch the parent sale (we need date, invoiceId, numClient from it) , if there
             // is no parent sale, skip , search the next id
             Optional<StagingSale> saleOpt = stagingSaleRepo.findById(line.getSaleId());
