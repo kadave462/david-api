@@ -126,7 +126,7 @@ public class WarehouseSyncService {
         // Step 1: Get the last sync time from the SyncLog table (if it
         LocalDateTime lastSync = syncLogRepo.findById(1L)
                 .map(s -> s.getLastSyncedAt())
-                .orElse(LocalDateTime.MIN);
+                .orElse(LocalDateTime.of(2020, 1, 1, 0, 0));
         List<StagingSaleLine> lines = stagingSaleLineRepo.findBySyncedAtAfter(lastSync);
 
         for (StagingSaleLine line : lines) {
