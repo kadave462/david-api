@@ -132,7 +132,7 @@ public class WarehouseSyncService {
             if (lastStagingId.equals(lastFactId)) {
                 SyncLog log = new SyncLog();
                 log.setId(1L);
-                log.setLastSyncedAt(LocalDateTime.now());
+                log.setLastSyncedAt(LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali")));
                 syncLogRepo.save(log);
                 return;
             }
@@ -203,7 +203,7 @@ public class WarehouseSyncService {
 
             SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
             log.setId(1L);
-            log.setLastSyncedAt(LocalDateTime.now());
+            log.setLastSyncedAt(LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali")));
             syncLogRepo.save(log);
         }
 
