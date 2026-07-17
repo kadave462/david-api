@@ -43,6 +43,7 @@ public class WarehouseSyncService {
     private final DimProductRepository dimProductRepo;
     private final FactSaleRepository factSaleRepo;
     private final SyncLogRepository syncLogRepo;
+    private boolean syncing = false;
 
     public WarehouseSyncService(
             StagingProductRepository stagingProductRepo,
@@ -202,12 +203,21 @@ public class WarehouseSyncService {
         sync();
     }
 
+    public boolean isSyncing() {
+        return syncing;
+    }
+
     @Scheduled(cron = "0 0 2 * * *")
     public void sync() {
-        syncPharmacies();
-        syncProducts();
-        syncClients();
-        syncFacts();
+        syncing = true;
+        try {
+            syncPharmacies();
+            syncProducts();
+            syncClients();
+            syncFacts();
+        } finally {
+            syncing = false;
+        }
     }
 
 }

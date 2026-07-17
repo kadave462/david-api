@@ -71,9 +71,11 @@ public class WarehouseController {
         status.put("last_sale_line_received", stagingSaleLineRepo.findTopByOrderBySyncedAtDesc()
                 .map(s -> s.getSyncedAt().toString())
                 .orElse("no data yet"));
-        status.put("last_synced", syncLogRepo.findById(1L)
-                .map(s -> s.getLastSyncedAt().toString())
-                .orElse("never synced"));
+        status.put("last_synced", warehouseSyncServiceA.isSyncing()
+                ? "syncing in progress..."
+                : syncLogRepo.findById(1L)
+                        .map(s -> s.getLastSyncedAt().toString())
+                        .orElse("never synced"));
 
         return ResponseEntity.ok(status);
 
