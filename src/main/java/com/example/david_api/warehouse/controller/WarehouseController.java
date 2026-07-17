@@ -6,6 +6,7 @@ import com.example.david_api.ingestion.repository.StagingSaleLineRepository;
 import com.example.david_api.warehouse.repository.DimClientRepository;
 import com.example.david_api.warehouse.repository.DimProductRepository;
 import com.example.david_api.warehouse.repository.FactSaleRepository;
+import com.example.david_api.warehouse.repository.SyncLogRepository;
 import com.example.david_api.ingestion.repository.StagingStockRepository;
 import com.example.david_api.ingestion.entity.StagingStock;
 
@@ -26,6 +27,7 @@ public class WarehouseController {
     private final DimClientRepository dimClientRepo;
     private final FactSaleRepository factSaleRepo;
     private final StagingStockRepository stagingStockRepo;
+    private final SyncLogRepository syncLogRepo;
 
     public WarehouseController(
             WarehouseSyncService warehouseSyncServiceB,
@@ -35,7 +37,8 @@ public class WarehouseController {
             DimProductRepository dimProductRepo,
             DimClientRepository dimClientRepo,
             FactSaleRepository factSaleRepo,
-            StagingStockRepository stagingStockRepo) {
+            StagingStockRepository stagingStockRepo,
+            SyncLogRepository syncLogRepo) {
         this.warehouseSyncServiceA = warehouseSyncServiceB;
         this.stagingProductRepo = stagingProductRepo;
         this.stagingClientRepo = stagingClientRepo;
@@ -44,6 +47,7 @@ public class WarehouseController {
         this.dimClientRepo = dimClientRepo;
         this.factSaleRepo = factSaleRepo;
         this.stagingStockRepo = stagingStockRepo;
+        this.syncLogRepo = syncLogRepo;
     }
 
     @PostMapping("/sync")
@@ -67,6 +71,9 @@ public class WarehouseController {
         status.put("last_sale_line_received", stagingSaleLineRepo.findTopByOrderBySyncedAtDesc()
                 .map(s -> s.getSyncedAt().toString())
                 .orElse("no data yet"));
+        status.put("last_synced", syncLogRepo.findById(1L)
+                .map(s -> s.getLastSyncedAt().toString())
+                .orElse("never synced"));
 
         return ResponseEntity.ok(status);
 
