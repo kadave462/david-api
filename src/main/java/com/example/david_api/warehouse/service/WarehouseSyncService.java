@@ -124,7 +124,20 @@ public class WarehouseSyncService {
     }
 
     public void syncFacts() {
-        // Step 1: Get the last sync time from the SyncLog table (if it
+        if (syncLogRepo.findById(1L).isEmpty() && factSaleRepo.count() > 0) {
+            Long lastStagingId = stagingSaleLineRepo.findTopByOrderByIdDesc()
+                    .map(s -> s.getId()).orElse(-1L);
+            Long lastFactId = factSaleRepo.findTopByOrderBySourceSaleLineIdDesc()
+                    .map(f -> f.getSourceSaleLineId()).orElse(-2L);
+            if (lastStagingId.equals(lastFactId)) {
+                SyncLog log = new SyncLog();
+                log.setId(1L);
+                log.setLastSyncedAt(LocalDateTime.now());
+                syncLogRepo.save(log);
+                return;
+            }
+        }
+
         LocalDateTime lastSync = syncLogRepo.findById(1L)
                 .map(s -> s.getLastSyncedAt())
                 .orElse(LocalDateTime.of(2020, 1, 1, 0, 0));
@@ -186,15 +199,13 @@ public class WarehouseSyncService {
                     ? line.getQuantity() * line.getUnitPrice()
                     : null);
 
-            factSaleRepo.save(fact); // we save everything to the fact_sale table,
-        }
+            factSaleRepo.save(fact);
 
-        // Step 9: update the SyncLog table with the current timestamp
-        SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
-        
-        log.setId(1L);
-        log.setLastSyncedAt(LocalDateTime.now());
-        syncLogRepo.save(log);
+            SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
+            log.setId(1L);
+            log.setLastSyncedAt(LocalDateTime.now());
+            syncLogRepo.save(log);
+        }
 
     }
 

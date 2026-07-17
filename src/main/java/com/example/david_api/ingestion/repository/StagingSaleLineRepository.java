@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface StagingSaleLineRepository extends JpaRepository<StagingSaleLine, Long> {
     Optional<StagingSaleLine> findTopByOrderBySyncedAtDesc();
+    Optional<StagingSaleLine> findTopByOrderByIdDesc();
     List<StagingSaleLine> findBySyncedAtAfter(LocalDateTime syncedAt);
 
 }
