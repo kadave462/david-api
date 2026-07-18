@@ -192,6 +192,8 @@ public class WarehouseSyncService {
             fact.setUnitPrice(line.getUnitPrice());
             fact.setCostPrice(line.getCostPrice());
             fact.setTva(line.getTva());
+            fact.setInsurance(sale.getNumClient());
+
             // We check both are not null first because if either is null, multiplying them
             // would crash.
             // If both exist → calculate. If either is missing → store null.

@@ -14,6 +14,8 @@ public class FactSale {
     private Long dateId;
 
     private Long clientId;
+    private String insurance;
+
     private Long productId;
 
     @Column(nullable = false)
@@ -34,41 +36,107 @@ public class FactSale {
         this.syncedAt = LocalDateTime.now();
     }
 
-    public Long getId() { return id; }
+    public Long getId() {
+        return id;
+    }
 
-    public Long getDateId() { return dateId; }
-    public void setDateId(Long dateId) { this.dateId = dateId; }
+    public Long getDateId() {
+        return dateId;
+    }
 
-    public Long getClientId() { return clientId; }
-    public void setClientId(Long clientId) { this.clientId = clientId; }
+    public void setDateId(Long dateId) {
+        this.dateId = dateId;
+    }
 
-    public Long getProductId() { return productId; }
-    public void setProductId(Long productId) { this.productId = productId; }
+    public Long getClientId() {
+        return clientId;
+    }
 
-    public String getPharmacyId() { return pharmacyId; }
-    public void setPharmacyId(String pharmacyId) { this.pharmacyId = pharmacyId; }
+    public void setClientId(Long clientId) {
+        this.clientId = clientId;
+    }
 
-    public Long getSourceSaleLineId() { return sourceSaleLineId; }
-    public void setSourceSaleLineId(Long sourceSaleLineId) { this.sourceSaleLineId = sourceSaleLineId; }
+    public String getInsurance() {
+        return insurance;
+    }
 
-    public Integer getSourceInvoiceId() { return sourceInvoiceId; }
-    public void setSourceInvoiceId(Integer sourceInvoiceId) { this.sourceInvoiceId = sourceInvoiceId; }
+    public void setInsurance(String insurance) {
+        this.insurance = insurance;
+    }
 
-    public Integer getQuantity() { return quantity; }
-    public void setQuantity(Integer quantity) { this.quantity = quantity; }
+    public Long getProductId() {
+        return productId;
+    }
 
-    public Double getUnitPrice() { return unitPrice; }
-    public void setUnitPrice(Double unitPrice) { this.unitPrice = unitPrice; }
+    public void setProductId(Long productId) {
+        this.productId = productId;
+    }
 
-    public Double getCostPrice() { return costPrice; }
-    public void setCostPrice(Double costPrice) { this.costPrice = costPrice; }
+    public String getPharmacyId() {
+        return pharmacyId;
+    }
 
-    public Double getTotalAmount() { return totalAmount; }
-    public void setTotalAmount(Double totalAmount) { this.totalAmount = totalAmount; }
+    public void setPharmacyId(String pharmacyId) {
+        this.pharmacyId = pharmacyId;
+    }
 
-    public Double getTva() { return tva; }
-    public void setTva(Double tva) { this.tva = tva; }
+    public Long getSourceSaleLineId() {
+        return sourceSaleLineId;
+    }
 
-    public LocalDateTime getSyncedAt() { return syncedAt; }
+    public void setSourceSaleLineId(Long sourceSaleLineId) {
+        this.sourceSaleLineId = sourceSaleLineId;
+    }
+
+    public Integer getSourceInvoiceId() {
+        return sourceInvoiceId;
+    }
+
+    public void setSourceInvoiceId(Integer sourceInvoiceId) {
+        this.sourceInvoiceId = sourceInvoiceId;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
+
+    public Double getUnitPrice() {
+        return unitPrice;
+    }
+
+    public void setUnitPrice(Double unitPrice) {
+        this.unitPrice = unitPrice;
+    }
+
+    public Double getCostPrice() {
+        return costPrice;
+    }
+
+    public void setCostPrice(Double costPrice) {
+        this.costPrice = costPrice;
+    }
+
+    public Double getTotalAmount() {
+        return totalAmount;
+    }
+
+    public void setTotalAmount(Double totalAmount) {
+        this.totalAmount = totalAmount;
+    }
+
+    public Double getTva() {
+        return tva;
+    }
+
+    public void setTva(Double tva) {
+        this.tva = tva;
+    }
+
+    public LocalDateTime getSyncedAt() {
+        return syncedAt;
+    }
 }
-
