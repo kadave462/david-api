@@ -1,5 +1,15 @@
 package com.example.david_api.ingestion.dto;
 
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.annotation.JsonNaming;
+
+/**
+ * SparkBind serializes with Gson, which uses FIELD names rather than getter names.
+ * Its transform/stock/StockDTO declares snake_case fields, so the JSON on the wire is
+ * snake_case (item_id, item_name, batch_number, ...) while Jackson would otherwise
+ * expect camelCase and silently drop every key it does not recognise.
+ */
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class StockDTO {
     private String hmac;
     private Integer stockLocationId;

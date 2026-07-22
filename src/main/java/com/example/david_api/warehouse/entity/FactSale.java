@@ -2,6 +2,7 @@ package com.example.david_api.warehouse.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "fact_sale")
@@ -25,6 +26,7 @@ public class FactSale {
     private Long sourceSaleLineId;
 
     private Integer sourceInvoiceId;
+    private String invoiceTime;
     private Integer quantity;
     private Double unitPrice;
     private Double costPrice;
@@ -33,7 +35,7 @@ public class FactSale {
     private LocalDateTime syncedAt;
 
     public FactSale() {
-        this.syncedAt = LocalDateTime.now();
+        this.syncedAt = LocalDateTime.now(ZoneId.of("Africa/Kigali"));
     }
 
     public Long getId() {
@@ -94,6 +96,14 @@ public class FactSale {
 
     public void setSourceInvoiceId(Integer sourceInvoiceId) {
         this.sourceInvoiceId = sourceInvoiceId;
+    }
+
+    public String getInvoiceTime() {
+        return invoiceTime;
+    }
+
+    public void setInvoiceTime(String invoiceTime) {
+        this.invoiceTime = invoiceTime;
     }
 
     public Integer getQuantity() {

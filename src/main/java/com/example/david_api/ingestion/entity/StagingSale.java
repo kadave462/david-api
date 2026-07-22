@@ -2,6 +2,7 @@ package com.example.david_api.ingestion.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "staging_sales")
@@ -23,7 +24,7 @@ public class StagingSale {
     private LocalDateTime syncedAt;
 
     public StagingSale() {
-        this.syncedAt = LocalDateTime.now();
+        this.syncedAt = LocalDateTime.now(ZoneId.of("Africa/Kigali"));
     }
 
     public Long getId() { return id; }

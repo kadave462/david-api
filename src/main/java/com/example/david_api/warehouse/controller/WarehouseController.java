@@ -13,6 +13,7 @@ import com.example.david_api.ingestion.entity.StagingStock;
 import com.example.david_api.warehouse.service.WarehouseSyncService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -56,6 +57,8 @@ public class WarehouseController {
         return ResponseEntity.ok("Warehouse sync completed");
     }
 
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getStatus() {
         Map<String, Object> status = new LinkedHashMap<>();
@@ -66,15 +69,15 @@ public class WarehouseController {
         status.put("dim_client", dimClientRepo.count());
         status.put("fact_sale", factSaleRepo.count());
         status.put("stock_last_synced", stagingStockRepo.findTopByOrderBySyncedAtDesc()
-                .map(s -> s.getSyncedAt().toString())
+                .map(s -> s.getSyncedAt().format(FMT))
                 .orElse("no stock data yet"));
         status.put("last_sale_line_received", stagingSaleLineRepo.findTopByOrderBySyncedAtDesc()
-                .map(s -> s.getSyncedAt().toString())
+                .map(s -> s.getSyncedAt().format(FMT))
                 .orElse("no data yet"));
         status.put("last_synced", warehouseSyncServiceA.isSyncing()
                 ? "syncing in progress..."
                 : syncLogRepo.findById(1L)
-                        .map(s -> s.getLastSyncedAt().toString())
+                        .map(s -> s.getLastSyncedAt().format(FMT))
                         .orElse("never synced"));
 
         return ResponseEntity.ok(status);

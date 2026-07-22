@@ -138,16 +138,27 @@ public class WarehouseSyncService {
             }
         }
 
+// Read the watermark: if sync_log row (id=1) exists, use its timestamp;
+// if the table is empty (first ever run), fall back to Jan 1 2020 so the
+//the purpose of this is to fetch only the sale lines that arrived after the last sync bookmark. 
+// If there is no bookmark, we fetch all sale lines since Jan 1 2020.
+
+
         LocalDateTime lastSync = syncLogRepo.findById(1L)
                 .map(s -> s.getLastSyncedAt())
                 .orElse(LocalDateTime.of(2020, 1, 1, 0, 0));
+
+    // Fetch only sale lines that arrived after the last sync bookmark.
         List<StagingSaleLine> lines = stagingSaleLineRepo.findBySyncedAtAfter(lastSync);
 
+        // For each StagingSaleLine, if it exist in fact_sale, pick the next one (this is the dedup guard), 
+        // if it doesnt  exist close the loop and keep going.
         for (StagingSaleLine line : lines) {
                 if (factSaleRepo.existsBySourceSaleLineId(line.getId())) continue;
 
             // fetch the parent sale (we need date, invoiceId, numClient from it) , if there
             // is no parent sale, skip , search the next id
+            //if the sale exists sale, we can extract the date and client information from it. put sale.opt in sale
             Optional<StagingSale> saleOpt = stagingSaleRepo.findById(line.getSaleId());
             if (saleOpt.isEmpty())
                 continue;
@@ -187,12 +198,13 @@ public class WarehouseSyncService {
             fact.setClientId(clientId); // FK to dim_client already extracted above line 159 (nullable)
             fact.setPharmacyId(line.getPharmacyId());
             fact.setSourceSaleLineId(line.getId());
-            fact.setSourceInvoiceId(sale.getSourceInvoiceId());
+            fact.setSourceInvoiceId(sale.getSourceInvoiceId());// from parent sale
+            fact.setInvoiceTime(sale.getInvoiceTime());// from parent sale
             fact.setQuantity(line.getQuantity());
             fact.setUnitPrice(line.getUnitPrice());
             fact.setCostPrice(line.getCostPrice());
             fact.setTva(line.getTva());
-            fact.setInsurance(sale.getNumClient());
+            fact.setInsurance(sale.getNumClient());// from parent sale
 
             // We check both are not null first because if either is null, multiplying them
             // would crash.
@@ -203,6 +215,9 @@ public class WarehouseSyncService {
 
             factSaleRepo.save(fact);
 
+            //after each sale line has been processed, 
+            // we update the sync_log table with the current timestamp
+            
             SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
             log.setId(1L);
             log.setLastSyncedAt(LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali")));
