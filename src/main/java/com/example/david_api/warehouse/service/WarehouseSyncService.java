@@ -148,6 +148,12 @@ public class WarehouseSyncService {
                 .map(s -> s.getLastSyncedAt())
                 .orElse(LocalDateTime.of(2020, 1, 1, 0, 0));
 
+        // Capture the cut-off BEFORE reading. The watermark may only ever advance to
+        // this point, never to "now" — anything SparkBind ingests while we are still
+        // processing keeps a syncedAt after it, so the next run picks those rows up
+        // instead of the watermark jumping past them and skipping them forever.
+        LocalDateTime snapshotTime = LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali"));
+
     // Fetch only sale lines that arrived after the last sync bookmark.
         List<StagingSaleLine> lines = stagingSaleLineRepo.findBySyncedAtAfter(lastSync);
 
@@ -214,15 +220,18 @@ public class WarehouseSyncService {
                     : null);
 
             factSaleRepo.save(fact);
-
-            //after each sale line has been processed, 
-            // we update the sync_log table with the current timestamp
-            
-            SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
-            log.setId(1L);
-            log.setLastSyncedAt(LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali")));
-            syncLogRepo.save(log);
         }
+
+        // Advance the watermark once, at the end, and only as far as the snapshot we
+        // actually read. Previously this ran after every save and used now(), which
+        // pushed the bookmark past rows that arrived mid-run — they were then never
+        // fetched again. Re-running is safe because existsBySourceSaleLineId above
+        // skips anything already in fact_sale, so a crash just repeats work rather
+        // than losing rows.
+        SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
+        log.setId(1L);
+        log.setLastSyncedAt(snapshotTime);
+        syncLogRepo.save(log);
 
     }
 
