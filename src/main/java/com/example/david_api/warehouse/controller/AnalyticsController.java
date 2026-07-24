@@ -37,4 +37,16 @@ public class AnalyticsController {
         return ResponseEntity.ok(result);
         // call factSaleRepo.topProductsByRevenue and
     }
+    
+    // get top payers by revenue between two dates
+    @GetMapping("/top-payers")
+    public ResponseEntity<?> getTopPayers(
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @RequestParam(defaultValue = "5") int limit) {
+        var result = factSaleRepo.topPayers(from, to, limit);
+
+        return ResponseEntity.ok(result);
+    }
+
 }
