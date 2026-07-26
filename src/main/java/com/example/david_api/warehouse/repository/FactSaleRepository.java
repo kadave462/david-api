@@ -1,6 +1,6 @@
 package com.example.david_api.warehouse.repository;
 
-import com.example.david_api.warehouse.analytics.RevenueRow;
+import com.example.david_api.warehouse.analytics.RevenuePeriodRow;
 import com.example.david_api.warehouse.analytics.TopPayerRow;
 import com.example.david_api.warehouse.analytics.TopProductRow;
 import com.example.david_api.warehouse.entity.FactSale;
@@ -12,21 +12,31 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+// Repository for the fact_sale table. Extending JpaRepository gives us the basic
+// CRUD methods (save, findById, findAll, count...) for free. Below we add:
+//   - a few Spring-generated finder methods (name → SQL, no @Query needed)
+//   - custom analytics queries written by hand with @Query + native SQL,
+//     each returning a projection (an interface that catches the SELECT shape).
 public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
+
+        // Dedup guard used by the ETL: "is this source sale line already in fact_sale?"
+        // syncFacts() calls this before inserting so the same line is never added twice.
         boolean existsBySourceSaleLineId(Long sourceSaleLineId);
 
+        // Returns the fact row with the highest source_sale_line_id (the newest line
+        // processed). Used by the bootstrap check in syncFacts() to compare against staging.
         Optional<FactSale> findTopByOrderBySourceSaleLineIdDesc();
 
-        // query to get revenue by month between two dates
-        @Query(value = "SELECT dd.year, dd.month, SUM(fs.total_amount) AS revenue\r\n" + //
-                        "FROM fact_sale fs\r\n" + //
-                        "JOIN dim_date dd ON fs.date_id = dd.id\r\n" + //
-                        "WHERE dd.full_date BETWEEN :from AND :to\r\n" + //
-                        "GROUP BY dd.year, dd.month\r\n" + //
-                        "ORDER BY dd.year, dd.month", nativeQuery = true)
-        List<RevenueRow> revenueByMonth(@Param("from") LocalDate from, @Param("to") LocalDate to);
+        // ── ANALYTICS QUERIES ─────────────────────────────────────────────
+        // All of these: filter fact_sale by a date range (via dim_date), aggregate,
+        // and return a projection. nativeQuery = true means the SQL is raw Postgres
+        // (real table/column names), not JPQL. The AS aliases must match the
+        // projection getters (e.g. AS revenue → getRevenue()).
 
-        // query to get top 5 products by revenue between two dates
+        // Top products by revenue, between two dates.
+        // Joins dim_product for the name, groups by product, orders by total revenue,
+        // and caps the result with LIMIT :limit. total_revenue = SUM(total_amount),
+        // total_quantity = SUM(quantity).
         @Query(value = "SELECT dp.product_name, SUM(fs.total_amount) AS total_revenue, SUM(fs.quantity) AS total_quantity\r\n"
                         + //
                         "FROM fact_sale fs\r\n" + //
@@ -39,6 +49,11 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         List<TopProductRow> topProductsByRevenue(@Param("from") LocalDate from, @Param("to") LocalDate to,
                         @Param("limit") int limit);
 
+        // Top payers by revenue, between two dates. This is the "Top Clients" feature,
+        // redefined: the invoice records the payer (insurer), never the individual, so
+        // we group by fact_sale.insurance directly — a degenerate dimension, no JOIN to
+        // dim_client needed. TRIM() collapses trailing-space duplicates ("SANLAM " vs
+        // "SANLAM"); COUNT(DISTINCT source_invoice_id) counts orders, not sale lines.
         @Query(value = """
                         SELECT TRIM(fs.insurance)                    AS insurance,
                                SUM(fs.total_amount)                  AS total_revenue,
@@ -50,10 +65,56 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         ORDER BY SUM(fs.total_amount) DESC
                         LIMIT :limit
                         """, nativeQuery = true)
-
-                        
         List<TopPayerRow> topPayers(@Param("from") LocalDate from,
                         @Param("to") LocalDate to,
                         @Param("limit") int limit);
+
+        // Revenue grouped by month, as a "YYYY-MM" period label.
+        @Query(value = """
+                        SELECT TO_CHAR(dd.full_date, 'YYYY-MM') AS period,
+                               SUM(fs.total_amount)             AS revenue
+                        FROM fact_sale fs
+                        JOIN dim_date dd ON fs.date_id = dd.id
+                        WHERE dd.full_date BETWEEN :from AND :to
+                        GROUP BY TO_CHAR(dd.full_date, 'YYYY-MM')
+                        ORDER BY period
+                        """, nativeQuery = true)
+        List<RevenuePeriodRow> revenuePeriodByMonth(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+        // Revenue grouped by day, as a "YYYY-MM-DD" period label.
+        @Query(value = """
+                        SELECT TO_CHAR(dd.full_date, 'YYYY-MM-DD') AS period,
+                               SUM(fs.total_amount)                AS revenue
+                        FROM fact_sale fs
+                        JOIN dim_date dd ON fs.date_id = dd.id
+                        WHERE dd.full_date BETWEEN :from AND :to
+                        GROUP BY TO_CHAR(dd.full_date, 'YYYY-MM-DD')
+                        ORDER BY period
+                        """, nativeQuery = true)
+        List<RevenuePeriodRow> revenuePeriodByDay(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+        // Revenue grouped by ISO week, as a "IYYY-Www" period label (e.g. 2026-W03).
+        @Query(value = """
+                        SELECT TO_CHAR(dd.full_date, 'IYYY-"W"IW') AS period,
+                               SUM(fs.total_amount)                AS revenue
+                        FROM fact_sale fs
+                        JOIN dim_date dd ON fs.date_id = dd.id
+                        WHERE dd.full_date BETWEEN :from AND :to
+                        GROUP BY TO_CHAR(dd.full_date, 'IYYY-"W"IW')
+                        ORDER BY period
+                        """, nativeQuery = true)
+        List<RevenuePeriodRow> revenuePeriodByWeek(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+        // Revenue grouped by year, as a "YYYY" period label (e.g. 2026).
+        @Query(value = """
+                        SELECT TO_CHAR(dd.full_date, 'YYYY') AS period,
+                               SUM(fs.total_amount)          AS revenue
+                        FROM fact_sale fs
+                        JOIN dim_date dd ON fs.date_id = dd.id
+                        WHERE dd.full_date BETWEEN :from AND :to
+                        GROUP BY TO_CHAR(dd.full_date, 'YYYY')
+                        ORDER BY period
+                        """, nativeQuery = true)
+        List<RevenuePeriodRow> revenuePeriodByYear(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
 }
