@@ -1,6 +1,7 @@
 package com.example.david_api.warehouse.repository;
 
 import com.example.david_api.warehouse.analytics.RevenuePeriodRow;
+import com.example.david_api.warehouse.analytics.StockForecastRow;
 import com.example.david_api.warehouse.analytics.TopPayerRow;
 import com.example.david_api.warehouse.analytics.TopProductRow;
 import com.example.david_api.warehouse.entity.FactSale;
@@ -116,5 +117,46 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         ORDER BY period
                         """, nativeQuery = true)
         List<RevenuePeriodRow> revenuePeriodByYear(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+
+        // Forecasting: average daily sales per product, and days of stock remaining.
+        // :days appears twice — once for the division, once for the window cutoff.
+        // INTERVAL can't take a bound parameter directly inside the quoted literal,
+        // so we multiply an interval by :days instead of writing INTERVAL ':days days'.
+        @Query(value = """
+                        WITH current_stock AS (
+                            SELECT item_id, item_name, SUM(quantity) AS current_stock
+                            FROM (
+                                SELECT DISTINCT ON (item_id, id_lot)
+                                       item_id, item_name, id_lot, quantity, synced_at
+                                FROM staging_stock
+                                ORDER BY item_id, id_lot, synced_at DESC
+                            ) latest_lots
+                            GROUP BY item_id, item_name
+                        ),
+
+                        sales_rate AS (
+                            SELECT
+                                dp.source_product_id           AS item_id,
+                                dp.product_name,
+                                SUM(fs.quantity)::numeric / :days AS avg_daily_sales
+                            FROM fact_sale fs
+                            JOIN dim_product dp ON fs.product_id = dp.id
+                            JOIN dim_date dd    ON fs.date_id   = dd.id
+                            WHERE dd.full_date >= CURRENT_DATE - (:days * INTERVAL '1 day')
+                            GROUP BY dp.source_product_id, dp.product_name
+                        )
+
+                        SELECT
+                            cs.item_id,
+                            cs.item_name,
+                            cs.current_stock,
+                            sr.avg_daily_sales,
+                            cs.current_stock / NULLIF(sr.avg_daily_sales, 0) AS days_remaining
+                        FROM current_stock cs
+                        LEFT JOIN sales_rate sr ON sr.item_id = cs.item_id
+                        ORDER BY days_remaining ASC NULLS LAST
+                        """, nativeQuery = true)
+        List<StockForecastRow> stockForecast(@Param("days") int days);
 
 }

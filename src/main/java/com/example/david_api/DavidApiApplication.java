@@ -13,7 +13,6 @@ public class DavidApiApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(DavidApiApplication.class, args);
 	}
-
 }
 
 

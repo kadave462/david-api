@@ -60,4 +60,14 @@ public class AnalyticsController {
         return ResponseEntity.ok(result);
     }
 
+    // Stock depletion forecast: current stock, average daily sales, and days
+    // remaining per product. days sets the sales-rate window (defaults to 30).
+    @GetMapping("/stock-forecast")
+    public ResponseEntity<?> getStockForecast(
+            @RequestParam(defaultValue = "30") int days) {
+
+        var result = factSaleRepo.stockForecast(days);
+        return ResponseEntity.ok(result);
+    }
+
 }
