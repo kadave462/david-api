@@ -17,11 +17,12 @@ public interface StagingStockRepository extends JpaRepository<StagingStock, Long
     boolean existsByHmacAndPharmacyId(String hmac, String pharmacyId);
     Optional<StagingStock> findTopByOrderBySyncedAtDesc();
 
-    // Lots expiring on or before :before (defaults to today, from the
-    // controller), soonest-expiring first. Deliberately NOT grouped/summed
-    // by product like the other analytics queries — expiration is a
-    // per-LOT property, so a product with 2 lots (one expiring soon, one
-    // not) needs to show up as 2 separate rows, not one blended number.
+    // Lots expiring between :after and :before (controller defaults these to
+    // today and today+30 days), soonest-expiring first. Deliberately NOT
+    // grouped/summed by product like the other analytics queries —
+    // expiration is a per-LOT property, so a product with 2 lots (one
+    // expiring soon, one not) needs to show up as 2 separate rows, not one
+    // blended number.
     //
     // Two steps, because DISTINCT ON forces its ORDER BY to start with the
     // DISTINCT ON columns — which would sort the FINAL output by
@@ -38,9 +39,9 @@ public interface StagingStockRepository extends JpaRepository<StagingStock, Long
     // expiration_date::date >= '2020-01-01' excludes garbage data confirmed
     // in production: hundreds of lots carry a placeholder date somewhere in
     // 2001 (looks like the source POS system's "no real date entered"
-    // default, not an actual expiration 25 years ago) that would otherwise
-    // flood this list as "already expired." Anything genuinely that old
-    // wouldn't still be sitting in a pharmacy's current stock anyway.
+    // default, not an actual expiration 25 years ago). Now that :after has
+    // its own explicit lower bound too, this is mostly a defensive backstop
+    // rather than the only thing doing the filtering.
     @Query(value = """
                     WITH latest_per_lot AS (
                         SELECT DISTINCT ON (item_id, batch_number)
@@ -52,8 +53,8 @@ public interface StagingStockRepository extends JpaRepository<StagingStock, Long
                     FROM latest_per_lot
                     WHERE expiration_date IS NOT NULL
                       AND expiration_date::date >= '2020-01-01'
-                      AND expiration_date::date <= :before
+                      AND expiration_date::date BETWEEN :after AND :before
                     ORDER BY expiration_date::date ASC
                     """, nativeQuery = true)
-    List<ExpiringStockRow> expiringStock(@Param("before") LocalDate before);
+    List<ExpiringStockRow> expiringStock(@Param("after") LocalDate after, @Param("before") LocalDate before);
 }
