@@ -69,7 +69,7 @@ public class AnalyticsController {
     }
 
     // Stock lots expiring between two dates (after defaults to today,
-    // before defaults to 30 days out) — one row per LOT, not per product,
+    // before defaults to 1 year out) — one row per LOT, not per product,
     // since expiration is a per-lot property. Nothing to do with
     // sales/fact_sale at all, so this is the one endpoint reading from
     // StagingStockRepository instead.
@@ -79,7 +79,7 @@ public class AnalyticsController {
             @RequestParam(required = false) LocalDate before) {
 
         LocalDate resolvedAfter = after != null ? after : LocalDate.now();
-        LocalDate resolvedBefore = before != null ? before : LocalDate.now().plusDays(30);
+        LocalDate resolvedBefore = before != null ? before : LocalDate.now().plusYears(1);
         var result = stagingStockRepo.expiringStock(resolvedAfter, resolvedBefore);
         return ResponseEntity.ok(result);
     }
