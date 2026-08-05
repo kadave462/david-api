@@ -115,6 +115,15 @@ public class IngestionService {
         return stockRepository.findAll();
     }
 
+    // Shared by the sync-complete endpoint, which has no staging rows of its
+    // own to save — it just needs the same API key check every other ingest
+    // endpoint does before it's allowed to trigger anything.
+    public void assertValidApiKey(String apiKey) {
+        if (!apiKey.equals(configuredApiKey)) {
+            throw new RuntimeException("Unauthorized: invalid API key");
+        }
+    }
+
     public void saveStock(List<StockDTO> stockList, String pharmacyId, String apiKey) {
         if (!apiKey.equals(configuredApiKey)) {
             throw new RuntimeException("Unauthorized: invalid API key");

@@ -42,12 +42,23 @@ public class IngestionController {
             @RequestHeader("X-Pharmacy-ID") String pharmacyId,
             @RequestHeader("X-Api-Key") String apiKey) {
         ingestionService.saveStock(stockList, pharmacyId, apiKey);
-        // Kick off a warehouse sync now that this batch has fully landed,
-        // instead of waiting for the 2am cron. Runs in the background
-        // (triggerSyncAsync is @Async) so the pharmacy's client doesn't sit
-        // waiting on a full sync before getting its 200 back.
-        warehouseSyncService.triggerSyncAsync();
         return ResponseEntity.ok("Stock received: " + stockList.size());
+    }
+
+    // Called once by the client (sparkbind) right after it finishes an
+    // entire sync cycle for a pharmacy — products, clients, sales, AND
+    // stock all landed — instead of guessing from the last stock batch
+    // (stock is chunked into multiple POSTs, so there's no way to tell
+    // from /stock alone which call was the final one). Runs the sync in
+    // the background (triggerSyncAsync is @Async) so this call returns
+    // immediately.
+    @PostMapping("/sync-complete")
+    public ResponseEntity<String> syncComplete(
+            @RequestHeader("X-Pharmacy-ID") String pharmacyId,
+            @RequestHeader("X-Api-Key") String apiKey) {
+        ingestionService.assertValidApiKey(apiKey);
+        warehouseSyncService.triggerSyncAsync();
+        return ResponseEntity.ok("Sync triggered");
     }
 
     @GetMapping("/clients")
