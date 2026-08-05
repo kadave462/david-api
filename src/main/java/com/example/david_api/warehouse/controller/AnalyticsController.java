@@ -63,6 +63,18 @@ public class AnalyticsController {
         return ResponseEntity.ok(result);
     }
 
+    // Slow movers: products that sold the FEWEST units over a date range
+    // (limit defaults to 10) — the opposite ranking from /top-movers.
+    @GetMapping("/slow-movers")
+    public ResponseEntity<?> getSlowMovers(
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @RequestParam(defaultValue = "10") int limit) {
+
+        var result = factSaleRepo.slowMovers(from, to, limit);
+        return ResponseEntity.ok(result);
+    }
+
     // Top payers (insurers) by revenue over a date range (limit defaults to 5).
     @GetMapping("/top-payers")
     public ResponseEntity<?> getTopPayers(

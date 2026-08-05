@@ -51,6 +51,29 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         List<TopProductRow> topProductsByRevenue(@Param("from") LocalDate from, @Param("to") LocalDate to,
                         @Param("limit") int limit);
 
+        // Slow movers: the opposite ranking from topProductsByQuantity below —
+        // ASC instead of DESC, so this returns products that sold the FEWEST
+        // units in the range, worth reviewing (discount, stop reordering).
+        // Same shape as topProductsByRevenue above (no stock/lot columns
+        // needed here), so it reuses TopProductRow rather than a new
+        // projection. Note: a product with ZERO sales in the range never
+        // appears at all — it has to show up in fact_sale to be grouped —
+        // so "slow mover" here means "sold the least," not "never sold."
+        @Query(value = """
+                        SELECT dp.product_name             AS product_name,
+                               SUM(fs.total_amount)         AS total_revenue,
+                               SUM(fs.quantity)              AS total_quantity
+                        FROM fact_sale fs
+                        JOIN dim_product dp ON fs.product_id = dp.id
+                        JOIN dim_date dd ON fs.date_id = dd.id
+                        WHERE dd.full_date BETWEEN :from AND :to
+                        GROUP BY dp.product_name
+                        ORDER BY SUM(fs.quantity) ASC
+                        LIMIT :limit
+                        """, nativeQuery = true)
+        List<TopProductRow> slowMovers(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                        @Param("limit") int limit);
+
         // Top movers by UNITS SOLD, not revenue — a different ranking than
         // topProductsByRevenue above (a cheap, high-volume item can move the
         // most units without being a top-revenue product, and vice versa).
