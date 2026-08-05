@@ -9,6 +9,7 @@ import com.example.david_api.ingestion.entity.StagingClient;
 import com.example.david_api.ingestion.entity.StagingProduct;
 import com.example.david_api.ingestion.entity.StagingSale;
 import com.example.david_api.ingestion.entity.StagingStock;
+import com.example.david_api.warehouse.service.WarehouseSyncService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,9 +19,11 @@ import java.util.List;
 @RequestMapping("/api/v1/ingest")
 public class IngestionController {
     private final IngestionService ingestionService;
+    private final WarehouseSyncService warehouseSyncService;
 
-    public IngestionController(IngestionService ingestionService) {
+    public IngestionController(IngestionService ingestionService, WarehouseSyncService warehouseSyncService) {
         this.ingestionService = ingestionService;
+        this.warehouseSyncService = warehouseSyncService;
     }
 
     @GetMapping("/products")
@@ -39,6 +42,11 @@ public class IngestionController {
             @RequestHeader("X-Pharmacy-ID") String pharmacyId,
             @RequestHeader("X-Api-Key") String apiKey) {
         ingestionService.saveStock(stockList, pharmacyId, apiKey);
+        // Kick off a warehouse sync now that this batch has fully landed,
+        // instead of waiting for the 2am cron. Runs in the background
+        // (triggerSyncAsync is @Async) so the pharmacy's client doesn't sit
+        // waiting on a full sync before getting its 200 back.
+        warehouseSyncService.triggerSyncAsync();
         return ResponseEntity.ok("Stock received: " + stockList.size());
     }
 

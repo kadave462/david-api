@@ -1,5 +1,6 @@
 package com.example.david_api.warehouse.service;
 
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -29,6 +30,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class WarehouseSyncService {
@@ -43,7 +45,16 @@ public class WarehouseSyncService {
     private final DimProductRepository dimProductRepo;
     private final FactSaleRepository factSaleRepo;
     private final SyncLogRepository syncLogRepo;
-    private boolean syncing = false;
+
+    // AtomicBoolean, not a plain boolean: sync() can now be triggered from
+    // several places at once (nightly cron, app-startup, and — once wired up
+    // in IngestionController — right after an ingest POST) instead of just
+    // the near-never-overlapping cron/startup pair it had before. A plain
+    // boolean's check-then-set in sync() isn't atomic, so two triggers
+    // landing close together could both see "not syncing" and both proceed,
+    // racing to insert the same rows. compareAndSet makes "check and claim"
+    // one step, so only one sync ever actually runs at a time.
+    private final AtomicBoolean syncing = new AtomicBoolean(false);
 
     public WarehouseSyncService(
             StagingProductRepository stagingProductRepo,
@@ -68,8 +79,8 @@ public class WarehouseSyncService {
         this.syncLogRepo = syncLogRepo;
     }
 
-    public void syncPharmacies() {
-        List<StagingProduct> products = stagingProductRepo.findAll();
+    public void syncPharmacies(LocalDateTime lastSync) {
+        List<StagingProduct> products = stagingProductRepo.findBySyncedAtAfter(lastSync);
         for (StagingProduct product : products) {
             String pharmacyId = product.getPharmacyId();
             if (dimPharmacyRepo.findByPharmacyId(pharmacyId).isEmpty()) {
@@ -80,8 +91,8 @@ public class WarehouseSyncService {
         }
     }
 
-    public void syncProducts() {
-        List<StagingProduct> products = stagingProductRepo.findAll();
+    public void syncProducts(LocalDateTime lastSync) {
+        List<StagingProduct> products = stagingProductRepo.findBySyncedAtAfter(lastSync);
         for (StagingProduct product : products) {
             Integer sourceProductId = product.getSourceProductId();
             String pharmacyId = product.getPharmacyId();
@@ -103,8 +114,8 @@ public class WarehouseSyncService {
 
     }
 
-    public void syncClients() {
-        List<StagingClient> clients = stagingClientRepo.findAll();
+    public void syncClients(LocalDateTime lastSync) {
+        List<StagingClient> clients = stagingClientRepo.findBySyncedAtAfter(lastSync);
         for (StagingClient client : clients) {
             String pharmacyId = client.getPharmacyId();
             String sourceAffiliationNum = client.getSourceAffiliationNum();
@@ -123,36 +134,24 @@ public class WarehouseSyncService {
 
     }
 
-    public void syncFacts() {
+    // lastSync is now read once in sync() and shared across all four steps
+    // (see sync() below) instead of each method reading/writing its own
+    // watermark. This bootstrap check stays scoped to facts only: it's for
+    // the one-time case where fact_sale is already fully populated (e.g. a
+    // migration) before sync_log has ever been written, so the very first
+    // run doesn't replay the whole history. It no longer saves the log
+    // itself — sync() does that once, after all four steps finish — it
+    // just skips the (redundant) per-row loop below.
+    public void syncFacts(LocalDateTime lastSync) {
         if (syncLogRepo.findById(1L).isEmpty() && factSaleRepo.count() > 0) {
             Long lastStagingId = stagingSaleLineRepo.findTopByOrderByIdDesc()
                     .map(s -> s.getId()).orElse(-1L);
             Long lastFactId = factSaleRepo.findTopByOrderBySourceSaleLineIdDesc()
                     .map(f -> f.getSourceSaleLineId()).orElse(-2L);
             if (lastStagingId.equals(lastFactId)) {
-                SyncLog log = new SyncLog();
-                log.setId(1L);
-                log.setLastSyncedAt(LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali")));
-                syncLogRepo.save(log);
                 return;
             }
         }
-
-// Read the watermark: if sync_log row (id=1) exists, use its timestamp;
-// if the table is empty (first ever run), fall back to Jan 1 2020 so the
-//the purpose of this is to fetch only the sale lines that arrived after the last sync bookmark. 
-// If there is no bookmark, we fetch all sale lines since Jan 1 2020.
-
-
-        LocalDateTime lastSync = syncLogRepo.findById(1L)
-                .map(s -> s.getLastSyncedAt())
-                .orElse(LocalDateTime.of(2020, 1, 1, 0, 0));
-
-        // Capture the cut-off BEFORE reading. The watermark may only ever advance to
-        // this point, never to "now" — anything SparkBind ingests while we are still
-        // processing keeps a syncedAt after it, so the next run picks those rows up
-        // instead of the watermark jumping past them and skipping them forever.
-        LocalDateTime snapshotTime = LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali"));
 
     // Fetch only sale lines that arrived after the last sync bookmark.
         List<StagingSaleLine> lines = stagingSaleLineRepo.findBySyncedAtAfter(lastSync);
@@ -221,18 +220,6 @@ public class WarehouseSyncService {
 
             factSaleRepo.save(fact);
         }
-
-        // Advance the watermark once, at the end, and only as far as the snapshot we
-        // actually read. Previously this ran after every save and used now(), which
-        // pushed the bookmark past rows that arrived mid-run — they were then never
-        // fetched again. Re-running is safe because existsBySourceSaleLineId above
-        // skips anything already in fact_sale, so a crash just repeats work rather
-        // than losing rows.
-        SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
-        log.setId(1L);
-        log.setLastSyncedAt(snapshotTime);
-        syncLogRepo.save(log);
-
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -241,19 +228,52 @@ public class WarehouseSyncService {
     }
 
     public boolean isSyncing() {
-        return syncing;
+        return syncing.get();
+    }
+
+    // Fire a sync from a request thread (e.g. right after an ingest POST)
+    // without making the caller wait for it. sync()'s own compareAndSet
+    // guard means this is safe to call often — if a sync is already running
+    // (from the cron, startup, or another ingest that just landed), this
+    // call is a no-op and the in-flight run picks up the new rows instead.
+    @Async
+    public void triggerSyncAsync() {
+        sync();
     }
 
     @Scheduled(cron = "0 0 2 * * *")
     public void sync() {
-        syncing = true;
+        if (!syncing.compareAndSet(false, true)) return;
         try {
-            syncPharmacies();
-            syncProducts();
-            syncClients();
-            syncFacts();
+            // Read the watermark once and share it across all four steps —
+            // previously only syncFacts read/wrote sync_log, so the other
+            // three had no way to skip rows they'd already processed and
+            // fell back to scanning the entire staging table (16k+ products,
+            // 3k+ clients) every single run. Capture the cutoff BEFORE
+            // reading, same reasoning as before: the watermark may only ever
+            // advance to this snapshot, never to "now" — anything ingested
+            // while this run is still in flight keeps a syncedAt after the
+            // snapshot, so the next run (cron, startup, or the next ingest
+            // trigger) picks it up instead of it being skipped forever.
+            LocalDateTime lastSync = syncLogRepo.findById(1L)
+                    .map(SyncLog::getLastSyncedAt)
+                    .orElse(LocalDateTime.of(2020, 1, 1, 0, 0));
+            LocalDateTime snapshotTime = LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali"));
+
+            syncPharmacies(lastSync);
+            syncProducts(lastSync);
+            syncClients(lastSync);
+            syncFacts(lastSync);
+
+            // Only advance the watermark after every step above has
+            // finished — if one throws, sync_log is left untouched so the
+            // next run retries the whole window instead of skipping it.
+            SyncLog log = syncLogRepo.findById(1L).orElse(new SyncLog());
+            log.setId(1L);
+            log.setLastSyncedAt(snapshotTime);
+            syncLogRepo.save(log);
         } finally {
-            syncing = false;
+            syncing.set(false);
         }
     }
 
