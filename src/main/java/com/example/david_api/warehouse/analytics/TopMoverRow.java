@@ -1,6 +1,11 @@
 package com.example.david_api.warehouse.analytics;
 
 public interface TopMoverRow {
+    // the pharmacy POS's own product ID (dim_product.source_product_id) —
+    // the same number used as staging_stock.item_id for the LEFT JOIN below.
+    // Exposed here so the frontend can show it directly instead of someone
+    // having to grep the raw /ingest/products feed to find it.
+    Integer getItemId();
     String getProductName();
     Long getTotalQuantity();
     Double getTotalRevenue();

@@ -93,7 +93,8 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                             FROM latest_per_lot
                             GROUP BY item_id
                         )
-                        SELECT dp.product_name                          AS product_name,
+                        SELECT dp.source_product_id                      AS item_id,
+                               dp.product_name                          AS product_name,
                                SUM(fs.quantity)                          AS total_quantity,
                                SUM(fs.total_amount)                      AS total_revenue,
                                SUM(fs.cost_price * fs.quantity)          AS cost,
@@ -107,7 +108,7 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         JOIN dim_date dd ON fs.date_id = dd.id
                         LEFT JOIN latest_lot ll ON ll.item_id = dp.source_product_id
                         WHERE dd.full_date BETWEEN :from AND :to
-                        GROUP BY dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity
+                        GROUP BY dp.source_product_id, dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity
                         ORDER BY SUM(fs.quantity) DESC
                         LIMIT :limit
                         """, nativeQuery = true)
