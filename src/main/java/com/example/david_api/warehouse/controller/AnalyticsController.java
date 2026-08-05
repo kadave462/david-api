@@ -49,6 +49,20 @@ public class AnalyticsController {
         return ResponseEntity.ok(result);
     }
 
+    // Top products by UNITS SOLD over a date range (limit defaults to 50).
+    // A different ranking than /top-products, which sorts by revenue —
+    // a cheap, high-volume item can top this list without being a top
+    // earner. Includes cost/profit per product alongside quantity.
+    @GetMapping("/top-movers")
+    public ResponseEntity<?> getTopMovers(
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @RequestParam(defaultValue = "50") int limit) {
+
+        var result = factSaleRepo.topProductsByQuantity(from, to, limit);
+        return ResponseEntity.ok(result);
+    }
+
     // Top payers (insurers) by revenue over a date range (limit defaults to 5).
     @GetMapping("/top-payers")
     public ResponseEntity<?> getTopPayers(

@@ -2,6 +2,7 @@ package com.example.david_api.warehouse.repository;
 
 import com.example.david_api.warehouse.analytics.RevenuePeriodRow;
 import com.example.david_api.warehouse.analytics.StockForecastRow;
+import com.example.david_api.warehouse.analytics.TopMoverRow;
 import com.example.david_api.warehouse.analytics.TopPayerRow;
 import com.example.david_api.warehouse.analytics.TopProductRow;
 import com.example.david_api.warehouse.entity.FactSale;
@@ -48,6 +49,29 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         "ORDER BY SUM(fs.total_amount) DESC\r\n" + //
                         "LIMIT :limit", nativeQuery = true)
         List<TopProductRow> topProductsByRevenue(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                        @Param("limit") int limit);
+
+        // Top movers by UNITS SOLD, not revenue — a different ranking than
+        // topProductsByRevenue above (a cheap, high-volume item can move the
+        // most units without being a top-revenue product, and vice versa).
+        // Same cost/profit computation as the revenue-period queries, so this
+        // one table can show price, revenue, AND profit per product, not just
+        // the ranking metric (quantity).
+        @Query(value = """
+                        SELECT dp.product_name                          AS product_name,
+                               SUM(fs.quantity)                          AS total_quantity,
+                               SUM(fs.total_amount)                      AS total_revenue,
+                               SUM(fs.cost_price * fs.quantity)          AS cost,
+                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit
+                        FROM fact_sale fs
+                        JOIN dim_product dp ON fs.product_id = dp.id
+                        JOIN dim_date dd ON fs.date_id = dd.id
+                        WHERE dd.full_date BETWEEN :from AND :to
+                        GROUP BY dp.product_name
+                        ORDER BY SUM(fs.quantity) DESC
+                        LIMIT :limit
+                        """, nativeQuery = true)
+        List<TopMoverRow> topProductsByQuantity(@Param("from") LocalDate from, @Param("to") LocalDate to,
                         @Param("limit") int limit);
 
         // Top payers by revenue, between two dates. This is the "Top Clients" feature,
