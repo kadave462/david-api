@@ -5,18 +5,23 @@ import java.time.LocalDate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.example.david_api.ingestion.repository.StagingStockRepository;
 import com.example.david_api.warehouse.repository.FactSaleRepository;
 
 // Read-only analytics endpoints. Each reads a date range from the query string,
-// calls a projection query on FactSaleRepository, and returns the list as JSON.
+// calls a projection query on FactSaleRepository (or, for stock/expiration
+// data that has nothing to do with sales, StagingStockRepository), and
+// returns the list as JSON.
 @RestController
 @RequestMapping("/api/v1/analytics")
 public class AnalyticsController {
 
     private final FactSaleRepository factSaleRepo;
+    private final StagingStockRepository stagingStockRepo;
 
-    public AnalyticsController(FactSaleRepository factSaleRepo) {
+    public AnalyticsController(FactSaleRepository factSaleRepo, StagingStockRepository stagingStockRepo) {
         this.factSaleRepo = factSaleRepo;
+        this.stagingStockRepo = stagingStockRepo;
     }
 
     // Revenue over a date range, grouped by a chosen period.
@@ -63,15 +68,15 @@ public class AnalyticsController {
         return ResponseEntity.ok(result);
     }
 
-    // Slow movers: products that sold the FEWEST units over a date range
-    // (limit defaults to 10) — the opposite ranking from /top-movers.
-    @GetMapping("/slow-movers")
-    public ResponseEntity<?> getSlowMovers(
-            @RequestParam LocalDate from,
-            @RequestParam LocalDate to,
-            @RequestParam(defaultValue = "10") int limit) {
+    // Stock lots expiring on or before a given date (defaults to today) —
+    // one row per LOT, not per product, since expiration is a per-lot
+    // property. Nothing to do with sales/fact_sale at all, so this is the
+    // one endpoint reading from StagingStockRepository instead.
+    @GetMapping("/expiring-stock")
+    public ResponseEntity<?> getExpiringStock(
+            @RequestParam(required = false) LocalDate before) {
 
-        var result = factSaleRepo.slowMovers(from, to, limit);
+        var result = stagingStockRepo.expiringStock(before != null ? before : LocalDate.now());
         return ResponseEntity.ok(result);
     }
 

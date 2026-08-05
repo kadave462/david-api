@@ -51,55 +51,6 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         List<TopProductRow> topProductsByRevenue(@Param("from") LocalDate from, @Param("to") LocalDate to,
                         @Param("limit") int limit);
 
-        // Slow movers: the opposite ranking from topProductsByQuantity below —
-        // ASC instead of DESC, so this returns products that sold the FEWEST
-        // units in the range, worth reviewing (discount, stop reordering).
-        // Note: a product with ZERO sales in the range never appears at all —
-        // it has to show up in fact_sale to be grouped — so "slow mover" here
-        // means "sold the least," not "never sold."
-        //
-        // Also joins current stock (same latest_lot pattern as
-        // topProductsByQuantity below — see its comment for the full
-        // reasoning), because "sold few units" only means something once you
-        // can see it next to "how many units did we even have to sell" —
-        // initial_quantity answers that.
-        @Query(value = """
-                        WITH latest_per_lot AS (
-                            SELECT DISTINCT ON (item_id, batch_number)
-                                   item_id, id_lot, batch_number, initial_quantity, quantity, synced_at
-                            FROM staging_stock
-                            ORDER BY item_id, batch_number, synced_at DESC
-                        ),
-                        latest_lot AS (
-                            SELECT item_id,
-                                   SUM(initial_quantity)                                    AS initial_quantity,
-                                   SUM(quantity)                                            AS quantity,
-                                   (ARRAY_AGG(batch_number ORDER BY synced_at DESC))[1]      AS batch_number,
-                                   (ARRAY_AGG(id_lot ORDER BY synced_at DESC))[1]            AS id_lot
-                            FROM latest_per_lot
-                            GROUP BY item_id
-                        )
-                        SELECT dp.product_name                          AS product_name,
-                               SUM(fs.quantity)                          AS total_quantity,
-                               SUM(fs.total_amount)                      AS total_revenue,
-                               SUM(fs.cost_price * fs.quantity)          AS cost,
-                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit,
-                               ll.initial_quantity                       AS initial_quantity,
-                               ll.batch_number                           AS batch_number,
-                               ll.id_lot                                 AS id_lot,
-                               ll.quantity                               AS live_quantity
-                        FROM fact_sale fs
-                        JOIN dim_product dp ON fs.product_id = dp.id
-                        JOIN dim_date dd ON fs.date_id = dd.id
-                        LEFT JOIN latest_lot ll ON ll.item_id = dp.source_product_id
-                        WHERE dd.full_date BETWEEN :from AND :to
-                        GROUP BY dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity
-                        ORDER BY SUM(fs.quantity) ASC
-                        LIMIT :limit
-                        """, nativeQuery = true)
-        List<TopMoverRow> slowMovers(@Param("from") LocalDate from, @Param("to") LocalDate to,
-                        @Param("limit") int limit);
-
         // Top movers by UNITS SOLD, not revenue — a different ranking than
         // topProductsByRevenue above (a cheap, high-volume item can move the
         // most units without being a top-revenue product, and vice versa).
