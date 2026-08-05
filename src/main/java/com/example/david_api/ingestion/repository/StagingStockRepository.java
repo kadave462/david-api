@@ -34,6 +34,13 @@ public interface StagingStockRepository extends JpaRepository<StagingStock, Long
     // stored format is a normal parseable date string (e.g. YYYY-MM-DD);
     // if the source system uses something Postgres can't parse, this cast
     // will error rather than silently sort wrong.
+    //
+    // expiration_date::date >= '2020-01-01' excludes garbage data confirmed
+    // in production: hundreds of lots carry a placeholder date somewhere in
+    // 2001 (looks like the source POS system's "no real date entered"
+    // default, not an actual expiration 25 years ago) that would otherwise
+    // flood this list as "already expired." Anything genuinely that old
+    // wouldn't still be sitting in a pharmacy's current stock anyway.
     @Query(value = """
                     WITH latest_per_lot AS (
                         SELECT DISTINCT ON (item_id, batch_number)
@@ -44,6 +51,7 @@ public interface StagingStockRepository extends JpaRepository<StagingStock, Long
                     SELECT item_name, batch_number, expiration_date, initial_quantity, quantity
                     FROM latest_per_lot
                     WHERE expiration_date IS NOT NULL
+                      AND expiration_date::date >= '2020-01-01'
                       AND expiration_date::date <= :before
                     ORDER BY expiration_date::date ASC
                     """, nativeQuery = true)
