@@ -56,18 +56,58 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         // most units without being a top-revenue product, and vice versa).
         // Same cost/profit computation as the revenue-period queries, so this
         // one table can show price, revenue, AND profit per product, not just
-        // the ranking metric (quantity).
+        // the ranking metric (quantity). Also joins each product's CURRENT
+        // stock lot (from staging_stock, a live snapshot — unrelated to the
+        // :from/:to sales window) so the table can flag low-stock items.
+        //
+        // latest_lot: staging_stock has one row per (item, lot) sync, and a
+        // product can have SEVERAL open lots at once (an old batch + a newly
+        // delivered one). Getting this right takes two steps:
+        //   1. latest_per_lot — for each (item, BATCH) pair, keep only its
+        //      most recent sync (a lot gets re-synced repeatedly as it
+        //      depletes, so there are many rows per lot over time; we want
+        //      its latest state, not its history). Grouped by batch_number,
+        //      not id_lot — batch_number is the real identifier that tells
+        //      two different lots apart; id_lot just holds a date and isn't
+        //      reliable for distinguishing one lot from another.
+        //   2. latest_lot — THEN sum quantity/initial_quantity across all of
+        //      a product's lots, so a product with 2 open lots reports its
+        //      TOTAL stock, not just whichever lot happened to sync last.
+        //      id_lot/batch_number can't be summed (they're text, not
+        //      numbers) — ARRAY_AGG(... ORDER BY synced_at DESC))[1] takes
+        //      just the most-recently-synced lot's value for those two,
+        //      while quantity/initial_quantity still add up correctly.
         @Query(value = """
+                        WITH latest_per_lot AS (
+                            SELECT DISTINCT ON (item_id, batch_number)
+                                   item_id, id_lot, batch_number, initial_quantity, quantity, synced_at
+                            FROM staging_stock
+                            ORDER BY item_id, batch_number, synced_at DESC
+                        ),
+                        latest_lot AS (
+                            SELECT item_id,
+                                   SUM(initial_quantity)                                    AS initial_quantity,
+                                   SUM(quantity)                                            AS quantity,
+                                   (ARRAY_AGG(batch_number ORDER BY synced_at DESC))[1]      AS batch_number,
+                                   (ARRAY_AGG(id_lot ORDER BY synced_at DESC))[1]            AS id_lot
+                            FROM latest_per_lot
+                            GROUP BY item_id
+                        )
                         SELECT dp.product_name                          AS product_name,
                                SUM(fs.quantity)                          AS total_quantity,
                                SUM(fs.total_amount)                      AS total_revenue,
                                SUM(fs.cost_price * fs.quantity)          AS cost,
-                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit
+                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit,
+                               ll.initial_quantity                       AS initial_quantity,
+                               ll.batch_number                           AS batch_number,
+                               ll.id_lot                                 AS id_lot,
+                               ll.quantity                               AS live_quantity
                         FROM fact_sale fs
                         JOIN dim_product dp ON fs.product_id = dp.id
                         JOIN dim_date dd ON fs.date_id = dd.id
+                        LEFT JOIN latest_lot ll ON ll.item_id = dp.source_product_id
                         WHERE dd.full_date BETWEEN :from AND :to
-                        GROUP BY dp.product_name
+                        GROUP BY dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity
                         ORDER BY SUM(fs.quantity) DESC
                         LIMIT :limit
                         """, nativeQuery = true)
@@ -162,14 +202,19 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         // :days appears twice — once for the division, once for the window cutoff.
         // INTERVAL can't take a bound parameter directly inside the quoted literal,
         // so we multiply an interval by :days instead of writing INTERVAL ':days days'.
+        //
+        // current_stock already summed across all of a product's lots (that part
+        // was always right) — but it used to tell lots apart by id_lot, which
+        // turned out to just hold a date, not a real lot identifier. Fixed to
+        // use batch_number instead, same correction as topProductsByQuantity above.
         @Query(value = """
                         WITH current_stock AS (
                             SELECT item_id, item_name, SUM(quantity) AS current_stock
                             FROM (
-                                SELECT DISTINCT ON (item_id, id_lot)
-                                       item_id, item_name, id_lot, quantity, synced_at
+                                SELECT DISTINCT ON (item_id, batch_number)
+                                       item_id, item_name, batch_number, quantity, synced_at
                                 FROM staging_stock
-                                ORDER BY item_id, id_lot, synced_at DESC
+                                ORDER BY item_id, batch_number, synced_at DESC
                             ) latest_lots
                             GROUP BY item_id, item_name
                         ),
