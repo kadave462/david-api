@@ -70,10 +70,16 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         @Param("to") LocalDate to,
                         @Param("limit") int limit);
 
-        // Revenue grouped by month, as a "YYYY-MM" period label.
+        // Revenue grouped by month, as a "YYYY-MM" period label. cost is
+        // SUM(cost_price * quantity) — cost_price is per-unit, so it has to be
+        // multiplied by quantity before summing, unlike total_amount which is
+        // already a line total. profit = revenue - cost, computed in the same
+        // SELECT so the two SUMs behind it aren't calculated twice.
         @Query(value = """
                         SELECT TO_CHAR(dd.full_date, 'YYYY-MM') AS period,
-                               SUM(fs.total_amount)             AS revenue
+                               SUM(fs.total_amount)             AS revenue,
+                               SUM(fs.cost_price * fs.quantity) AS cost,
+                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit
                         FROM fact_sale fs
                         JOIN dim_date dd ON fs.date_id = dd.id
                         WHERE dd.full_date BETWEEN :from AND :to
@@ -82,10 +88,13 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         """, nativeQuery = true)
         List<RevenuePeriodRow> revenuePeriodByMonth(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
-        // Revenue grouped by day, as a "YYYY-MM-DD" period label.
+        // Revenue grouped by day, as a "YYYY-MM-DD" period label. Same cost/profit
+        // addition as the month query above.
         @Query(value = """
                         SELECT TO_CHAR(dd.full_date, 'YYYY-MM-DD') AS period,
-                               SUM(fs.total_amount)                AS revenue
+                               SUM(fs.total_amount)                AS revenue,
+                               SUM(fs.cost_price * fs.quantity)    AS cost,
+                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit
                         FROM fact_sale fs
                         JOIN dim_date dd ON fs.date_id = dd.id
                         WHERE dd.full_date BETWEEN :from AND :to
@@ -95,9 +104,12 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         List<RevenuePeriodRow> revenuePeriodByDay(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
         // Revenue grouped by ISO week, as a "IYYY-Www" period label (e.g. 2026-W03).
+        // Same cost/profit addition.
         @Query(value = """
                         SELECT TO_CHAR(dd.full_date, 'IYYY-"W"IW') AS period,
-                               SUM(fs.total_amount)                AS revenue
+                               SUM(fs.total_amount)                AS revenue,
+                               SUM(fs.cost_price * fs.quantity)    AS cost,
+                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit
                         FROM fact_sale fs
                         JOIN dim_date dd ON fs.date_id = dd.id
                         WHERE dd.full_date BETWEEN :from AND :to
@@ -107,9 +119,12 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         List<RevenuePeriodRow> revenuePeriodByWeek(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
         // Revenue grouped by year, as a "YYYY" period label (e.g. 2026).
+        // Same cost/profit addition.
         @Query(value = """
                         SELECT TO_CHAR(dd.full_date, 'YYYY') AS period,
-                               SUM(fs.total_amount)          AS revenue
+                               SUM(fs.total_amount)          AS revenue,
+                               SUM(fs.cost_price * fs.quantity) AS cost,
+                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit
                         FROM fact_sale fs
                         JOIN dim_date dd ON fs.date_id = dd.id
                         WHERE dd.full_date BETWEEN :from AND :to
