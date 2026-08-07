@@ -29,6 +29,19 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         // processed). Used by the bootstrap check in syncFacts() to compare against staging.
         Optional<FactSale> findTopByOrderBySourceSaleLineIdDesc();
 
+        // Raw fact_sale rows (not aggregated) for a date range — the equivalent of
+        // GET /api/v1/ingest/stock, but for sales. Bounded by :from/:to rather than
+        // a plain findAll(): unlike staging_stock (~3k rows), fact_sale has been
+        // growing continuously since the 2026-01 backfill and an unbounded dump
+        // would only get bigger every day.
+        @Query(value = """
+                        SELECT fs.* FROM fact_sale fs
+                        JOIN dim_date dd ON fs.date_id = dd.id
+                        WHERE dd.full_date BETWEEN :from AND :to
+                        ORDER BY fs.invoice_time
+                        """, nativeQuery = true)
+        List<FactSale> findByDateRange(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
         // ── ANALYTICS QUERIES ─────────────────────────────────────────────
         // All of these: filter fact_sale by a date range (via dim_date), aggregate,
         // and return a projection. nativeQuery = true means the SQL is raw Postgres

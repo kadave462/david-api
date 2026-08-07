@@ -12,11 +12,14 @@ import com.example.david_api.ingestion.repository.StagingStockRepository;
 import com.example.david_api.ingestion.entity.StagingStock;
 
 
+import com.example.david_api.warehouse.entity.FactSale;
 import com.example.david_api.warehouse.service.WarehouseSyncService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -61,6 +64,15 @@ public class WarehouseController {
     public ResponseEntity<String> triggerSync() {
         warehouseSyncServiceA.sync();
         return ResponseEntity.ok("Warehouse sync completed");
+    }
+
+    // Raw fact_sale rows for a date range — mirrors GET /api/v1/ingest/stock,
+    // but for sales, and bounded by from/to since fact_sale keeps growing daily.
+    @GetMapping("/fact-sales")
+    public ResponseEntity<List<FactSale>> getFactSales(
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to) {
+        return ResponseEntity.ok(factSaleRepo.findByDateRange(from, to));
     }
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
