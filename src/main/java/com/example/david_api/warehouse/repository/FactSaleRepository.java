@@ -63,13 +63,15 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         // latest_lot: staging_stock has one row per (item, lot) sync, and a
         // product can have SEVERAL open lots at once (an old batch + a newly
         // delivered one). Getting this right takes two steps:
-        //   1. latest_per_lot — for each (item, BATCH) pair, keep only its
-        //      most recent sync (a lot gets re-synced repeatedly as it
-        //      depletes, so there are many rows per lot over time; we want
-        //      its latest state, not its history). Grouped by batch_number,
-        //      not id_lot — batch_number is the real identifier that tells
-        //      two different lots apart; id_lot just holds a date and isn't
-        //      reliable for distinguishing one lot from another.
+        //   1. latest_per_lot — for each (item, BATCH, id_lot) triple, keep
+        //      only its most recent sync (a lot gets re-synced repeatedly as
+        //      it depletes, so there are many rows per lot over time; we
+        //      want its latest state, not its history). id_lot is part of
+        //      the grouping key too, not just batch_number: suppliers reuse
+        //      batch codes across genuinely different deliveries (same
+        //      batch_number, different received date and initial_quantity),
+        //      so batch_number alone can collide two distinct physical lots
+        //      into one — silently dropping whichever synced less recently.
         //   2. latest_lot — THEN sum quantity/initial_quantity across all of
         //      a product's lots, so a product with 2 open lots reports its
         //      TOTAL stock, not just whichever lot happened to sync last.
@@ -79,10 +81,10 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         //      while quantity/initial_quantity still add up correctly.
         @Query(value = """
                         WITH latest_per_lot AS (
-                            SELECT DISTINCT ON (item_id, batch_number)
+                            SELECT DISTINCT ON (item_id, batch_number, id_lot)
                                    item_id, id_lot, batch_number, initial_quantity, quantity, expiration_date, synced_at
                             FROM staging_stock
-                            ORDER BY item_id, batch_number, synced_at DESC
+                            ORDER BY item_id, batch_number, id_lot, synced_at DESC
                         ),
                         latest_lot AS (
                             SELECT item_id,
@@ -215,10 +217,10 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         WITH current_stock AS (
                             SELECT item_id, item_name, SUM(quantity) AS current_stock
                             FROM (
-                                SELECT DISTINCT ON (item_id, batch_number)
+                                SELECT DISTINCT ON (item_id, batch_number, id_lot)
                                        item_id, item_name, batch_number, quantity, synced_at
                                 FROM staging_stock
-                                ORDER BY item_id, batch_number, synced_at DESC
+                                ORDER BY item_id, batch_number, id_lot, synced_at DESC
                             ) latest_lots
                             GROUP BY item_id, item_name
                         ),

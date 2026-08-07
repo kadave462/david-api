@@ -9,4 +9,5 @@ public interface ExpiringStockRow {
     String getExpirationDate();
     Integer getInitialQuantity();
     Integer getQuantity();
+    Double getUnitCost();
 }

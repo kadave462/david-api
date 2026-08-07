@@ -44,12 +44,12 @@ public interface StagingStockRepository extends JpaRepository<StagingStock, Long
     // rather than the only thing doing the filtering.
     @Query(value = """
                     WITH latest_per_lot AS (
-                        SELECT DISTINCT ON (item_id, batch_number)
-                               item_name, batch_number, expiration_date, initial_quantity, quantity
+                        SELECT DISTINCT ON (item_id, batch_number, id_lot)
+                               item_name, batch_number, expiration_date, initial_quantity, quantity, unit_cost
                         FROM staging_stock
-                        ORDER BY item_id, batch_number, synced_at DESC
+                        ORDER BY item_id, batch_number, id_lot, synced_at DESC
                     )
-                    SELECT item_name, batch_number, expiration_date, initial_quantity, quantity
+                    SELECT item_name, batch_number, expiration_date, initial_quantity, quantity, unit_cost
                     FROM latest_per_lot
                     WHERE expiration_date IS NOT NULL
                       AND expiration_date::date >= '2020-01-01'
