@@ -80,7 +80,7 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         @Query(value = """
                         WITH latest_per_lot AS (
                             SELECT DISTINCT ON (item_id, batch_number)
-                                   item_id, id_lot, batch_number, initial_quantity, quantity, synced_at
+                                   item_id, id_lot, batch_number, initial_quantity, quantity, expiration_date, synced_at
                             FROM staging_stock
                             ORDER BY item_id, batch_number, synced_at DESC
                         ),
@@ -89,7 +89,8 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                                    SUM(initial_quantity)                                    AS initial_quantity,
                                    SUM(quantity)                                            AS quantity,
                                    (ARRAY_AGG(batch_number ORDER BY synced_at DESC))[1]      AS batch_number,
-                                   (ARRAY_AGG(id_lot ORDER BY synced_at DESC))[1]            AS id_lot
+                                   (ARRAY_AGG(id_lot ORDER BY synced_at DESC))[1]            AS id_lot,
+                                   (ARRAY_AGG(expiration_date ORDER BY synced_at DESC))[1]   AS expiration_date
                             FROM latest_per_lot
                             GROUP BY item_id
                         )
@@ -102,13 +103,15 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                                ll.initial_quantity                       AS initial_quantity,
                                ll.batch_number                           AS batch_number,
                                ll.id_lot                                 AS id_lot,
-                               ll.quantity                               AS live_quantity
+                               ll.quantity                               AS live_quantity,
+                               ll.expiration_date                        AS expiration_date,
+                               MAX(fs.invoice_time)                      AS last_sale
                         FROM fact_sale fs
                         JOIN dim_product dp ON fs.product_id = dp.id
                         JOIN dim_date dd ON fs.date_id = dd.id
                         LEFT JOIN latest_lot ll ON ll.item_id = dp.source_product_id
                         WHERE dd.full_date BETWEEN :from AND :to
-                        GROUP BY dp.source_product_id, dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity
+                        GROUP BY dp.source_product_id, dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity, ll.expiration_date
                         ORDER BY SUM(fs.quantity) DESC
                         LIMIT :limit
                         """, nativeQuery = true)

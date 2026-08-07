@@ -21,4 +21,9 @@ public interface TopMoverRow {
     String getBatchNumber();   // the actual lot/batch identifier
     String getIdLot();         // despite the name, this column holds a documented date, not an id
     Long getLiveQuantity();
+    String getExpirationDate(); // from the same currently-open lot as the fields above; null if no matching lot
+
+    // Most recent sale of this product within the requested date range
+    // (MAX(fs.invoice_time)) — a plain aggregate, not tied to any lot.
+    String getLastSale();
 }
