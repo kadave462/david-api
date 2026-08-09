@@ -34,10 +34,11 @@ public class AnalyticsController {
             @RequestParam(defaultValue = "month") String groupBy) {
 
         var result = switch (groupBy) {
-            case "day"  -> factSaleRepo.revenuePeriodByDay(from, to);
-            case "week" -> factSaleRepo.revenuePeriodByWeek(from, to);
-            case "year" -> factSaleRepo.revenuePeriodByYear(from, to);
-            default     -> factSaleRepo.revenuePeriodByMonth(from, to);  // "month" or anything unknown
+            case "day"           -> factSaleRepo.revenuePeriodByDay(from, to);
+            case "week"          -> factSaleRepo.revenuePeriodByWeek(from, to);
+            case "year"          -> factSaleRepo.revenuePeriodByYear(from, to);
+            case "month-to-date" -> factSaleRepo.revenuePeriodByMonthToDate(from, to);
+            default              -> factSaleRepo.revenuePeriodByMonth(from, to);  // "month" or anything unknown
         };
 
         return ResponseEntity.ok(result);

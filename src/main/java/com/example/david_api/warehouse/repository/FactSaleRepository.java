@@ -171,6 +171,26 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         """, nativeQuery = true)
         List<RevenuePeriodRow> revenuePeriodByMonth(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
+        // Same shape as revenuePeriodByMonth, but each month only counts days
+        // 1 through day-of-month(:to) — e.g. if :to is the 9th, every month
+        // in range is capped to its own 1st-9th, not the whole month. Lets
+        // "how much had we made by this point" be compared fairly month over
+        // month, instead of earlier months (fully counted) looking bigger
+        // than the current, still-in-progress one just because it's not over.
+        @Query(value = """
+                        SELECT TO_CHAR(dd.full_date, 'YYYY-MM') AS period,
+                               SUM(fs.total_amount)             AS revenue,
+                               SUM(fs.cost_price * fs.quantity) AS cost,
+                               SUM(fs.total_amount) - SUM(fs.cost_price * fs.quantity) AS profit
+                        FROM fact_sale fs
+                        JOIN dim_date dd ON fs.date_id = dd.id
+                        WHERE dd.full_date BETWEEN :from AND :to
+                          AND EXTRACT(DAY FROM dd.full_date) <= EXTRACT(DAY FROM CAST(:to AS date))
+                        GROUP BY TO_CHAR(dd.full_date, 'YYYY-MM')
+                        ORDER BY period
+                        """, nativeQuery = true)
+        List<RevenuePeriodRow> revenuePeriodByMonthToDate(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
         // Revenue grouped by day, as a "YYYY-MM-DD" period label. Same cost/profit
         // addition as the month query above.
         @Query(value = """
