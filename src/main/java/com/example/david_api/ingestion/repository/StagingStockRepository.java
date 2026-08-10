@@ -42,6 +42,13 @@ public interface StagingStockRepository extends JpaRepository<StagingStock, Long
     // default, not an actual expiration 25 years ago). Now that :after has
     // its own explicit lower bound too, this is mostly a defensive backstop
     // rather than the only thing doing the filtering.
+    //
+    // quantity > 0 excludes lots that are already fully sold/used up. Needed
+    // now that SparkBind syncs QTY_LIVE >= 0 (previously > 0) — sold-out
+    // lots that used to just vanish from the feed now show up with their
+    // real, frozen-at-zero quantity. Still relevant to know they expired,
+    // but not as "stock you need to move," so this panel excludes them
+    // rather than mixing genuinely actionable stock with dead lots.
     @Query(value = """
                     WITH latest_per_lot AS (
                         SELECT DISTINCT ON (item_id, batch_number, id_lot)
@@ -54,6 +61,7 @@ public interface StagingStockRepository extends JpaRepository<StagingStock, Long
                     WHERE expiration_date IS NOT NULL
                       AND expiration_date::date >= '2020-01-01'
                       AND expiration_date::date BETWEEN :after AND :before
+                      AND quantity > 0
                     ORDER BY expiration_date::date ASC
                     """, nativeQuery = true)
     List<ExpiringStockRow> expiringStock(@Param("after") LocalDate after, @Param("before") LocalDate before);
