@@ -124,15 +124,29 @@ public class IngestionService {
         }
     }
 
+    // Upsert, not append: staging_stock used to gain a brand-new row every
+    // sync, forever, even when nothing about a lot had changed since the
+    // last check. What every downstream query actually wants is current
+    // state, not history — they were already picking the latest row per
+    // (item_id, batch_number, id_lot) and ignoring the rest. So now each
+    // lot gets found by that same natural key and updated in place; a new
+    // row is only ever inserted the first time this lot is ever seen.
     public void saveStock(List<StockDTO> stockList, String pharmacyId, String apiKey) {
         if (!apiKey.equals(configuredApiKey)) {
             throw new RuntimeException("Unauthorized: invalid API key");
         }
         for (StockDTO dto : stockList) {
-            if (stockRepository.existsByHmacAndPharmacyId(dto.getHmac(), pharmacyId)) {
+            StagingStock entity = stockRepository
+                    .findByPharmacyIdAndItemIdAndBatchNumberAndIdLot(
+                            pharmacyId, dto.getItemId(), dto.getBatchNumber(), dto.getIdLot())
+                    .orElseGet(StagingStock::new);
+            // hmac already covers every field that can meaningfully change
+            // (see StockRepository.generateHmac on the SparkBind side) — if
+            // it matches what's already stored, this lot's state hasn't
+            // moved since the last sync, so skip the write entirely.
+            if (dto.getHmac().equals(entity.getHmac())) {
                 continue;
             }
-            StagingStock entity = new StagingStock();
             entity.setPharmacyId(pharmacyId);
             entity.setHmac(dto.getHmac());
             entity.setStockLocationId(dto.getStockLocationId());
@@ -149,6 +163,10 @@ public class IngestionService {
             entity.setItemCode(dto.getItemCode());
             entity.setEmployee(dto.getEmployee());
             entity.setIdLot(dto.getIdLot());
+            // entity's own constructor only stamps this on brand-new rows —
+            // an existing row being updated needs it refreshed explicitly,
+            // otherwise it'd keep showing whenever this lot was first synced.
+            entity.setSyncedAt(java.time.LocalDateTime.now(java.time.ZoneId.of("Africa/Kigali")));
             stockRepository.save(entity);
         }
     }

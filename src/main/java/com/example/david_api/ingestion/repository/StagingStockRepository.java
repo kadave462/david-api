@@ -14,8 +14,15 @@ import java.util.Optional;
 
 @Repository
 public interface StagingStockRepository extends JpaRepository<StagingStock, Long> {
-    boolean existsByHmacAndPharmacyId(String hmac, String pharmacyId);
     Optional<StagingStock> findTopByOrderBySyncedAtDesc();
+
+    // The natural key for "this physical lot" — same triple every other
+    // query in this codebase already dedupes on (item_id, batch_number,
+    // id_lot; see FactSaleRepository/expiringStock above). Used by
+    // saveStock() to find whether a row for this lot already exists so it
+    // can be updated in place instead of appending a new one every sync.
+    Optional<StagingStock> findByPharmacyIdAndItemIdAndBatchNumberAndIdLot(
+            String pharmacyId, Integer itemId, String batchNumber, String idLot);
 
     // Lots expiring between :after and :before (controller defaults these to
     // today and today+30 days), soonest-expiring first. Deliberately NOT
