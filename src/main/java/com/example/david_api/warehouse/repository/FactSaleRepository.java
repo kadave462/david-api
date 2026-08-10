@@ -88,10 +88,23 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         //   2. latest_lot — THEN sum quantity/initial_quantity across all of
         //      a product's lots, so a product with 2 open lots reports its
         //      TOTAL stock, not just whichever lot happened to sync last.
-        //      id_lot/batch_number can't be summed (they're text, not
-        //      numbers) — ARRAY_AGG(... ORDER BY synced_at DESC))[1] takes
-        //      just the most-recently-synced lot's value for those two,
-        //      while quantity/initial_quantity still add up correctly.
+        //      id_lot/batch_number/expiration_date can't be summed (they're
+        //      text, not numbers) — one lot has to be picked to represent
+        //      them. NOT "whichever synced most recently": a product can
+        //      have a dozen+ sold-out lots alongside 1-2 that are actually
+        //      live, and after a big resync (everything landing within
+        //      minutes of each other, in whatever order the source query
+        //      happens to return rows) "most recent sync" is close to
+        //      arbitrary — it can just as easily point at a lot that's been
+        //      dead for years as one that's still on the shelf. Picking
+        //      quantity > 0 first, then soonest-expiring within that group,
+        //      answers a real question instead: of what's actually still in
+        //      stock, which lot needs attention first — matching how a
+        //      pharmacy sells FIFO (oldest/soonest-expiring stock first). If
+        //      every lot is sold out, falls back to the soonest-expired one
+        //      rather than an arbitrary pick. All three ARRAY_AGGs share the
+        //      same ORDER BY so batch_number/id_lot/expiration_date always
+        //      come from the SAME chosen lot, not three different ones.
         @Query(value = """
                         WITH latest_per_lot AS (
                             SELECT DISTINCT ON (item_id, batch_number, id_lot)
@@ -101,11 +114,11 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         ),
                         latest_lot AS (
                             SELECT item_id,
-                                   SUM(initial_quantity)                                    AS initial_quantity,
-                                   SUM(quantity)                                            AS quantity,
-                                   (ARRAY_AGG(batch_number ORDER BY synced_at DESC))[1]      AS batch_number,
-                                   (ARRAY_AGG(id_lot ORDER BY synced_at DESC))[1]            AS id_lot,
-                                   (ARRAY_AGG(expiration_date ORDER BY synced_at DESC))[1]   AS expiration_date
+                                   SUM(initial_quantity)                                                                                      AS initial_quantity,
+                                   SUM(quantity)                                                                                              AS quantity,
+                                   (ARRAY_AGG(batch_number     ORDER BY (quantity > 0) DESC, expiration_date::date ASC))[1]                    AS batch_number,
+                                   (ARRAY_AGG(id_lot           ORDER BY (quantity > 0) DESC, expiration_date::date ASC))[1]                    AS id_lot,
+                                   (ARRAY_AGG(expiration_date  ORDER BY (quantity > 0) DESC, expiration_date::date ASC))[1]                    AS expiration_date
                             FROM latest_per_lot
                             GROUP BY item_id
                         )
