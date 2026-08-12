@@ -55,17 +55,17 @@ public class AnalyticsController {
         return ResponseEntity.ok(result);
     }
 
-    // Top products by UNITS SOLD over a date range (limit defaults to 50).
+    // Top products by UNITS SOLD, all-time (limit defaults to 50). No
+    // from/to here — see the comment on topProductsByQuantity for why this
+    // one deliberately isn't scoped to a date range like the others.
     // A different ranking than /top-products, which sorts by revenue —
     // a cheap, high-volume item can top this list without being a top
     // earner. Includes cost/profit per product alongside quantity.
     @GetMapping("/top-movers")
     public ResponseEntity<?> getTopMovers(
-            @RequestParam LocalDate from,
-            @RequestParam LocalDate to,
             @RequestParam(defaultValue = "50") int limit) {
 
-        var result = factSaleRepo.topProductsByQuantity(from, to, limit);
+        var result = factSaleRepo.topProductsByQuantity(limit);
         return ResponseEntity.ok(result);
     }
 

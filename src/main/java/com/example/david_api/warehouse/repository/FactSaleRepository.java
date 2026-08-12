@@ -70,8 +70,16 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         // Same cost/profit computation as the revenue-period queries, so this
         // one table can show price, revenue, AND profit per product, not just
         // the ranking metric (quantity). Also joins each product's CURRENT
-        // stock lot (from staging_stock, a live snapshot — unrelated to the
-        // :from/:to sales window) so the table can flag low-stock items.
+        // stock lot (from staging_stock, a live snapshot).
+        //
+        // Deliberately NOT scoped to a :from/:to range like the other
+        // analytics queries — it used to be, but that meant a product with
+        // real sales history could vanish from this table entirely just
+        // because none of its sales fell inside whatever date range happened
+        // to be selected on the dashboard (which defaults to a short window
+        // meant for the Revenue chart, not this one). "Top movers, ever" is
+        // a more stable, coherent question than "top movers in whatever
+        // range is currently picked" — so this always reflects full history.
         //
         // latest_lot: staging_stock has one row per (item, lot) sync, and a
         // product can have SEVERAL open lots at once (an old batch + a newly
@@ -136,15 +144,12 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                                MAX(fs.invoice_time)                      AS last_sale
                         FROM fact_sale fs
                         JOIN dim_product dp ON fs.product_id = dp.id
-                        JOIN dim_date dd ON fs.date_id = dd.id
                         LEFT JOIN latest_lot ll ON ll.item_id = dp.source_product_id
-                        WHERE dd.full_date BETWEEN :from AND :to
                         GROUP BY dp.source_product_id, dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity, ll.expiration_date
                         ORDER BY SUM(fs.quantity) DESC
                         LIMIT :limit
                         """, nativeQuery = true)
-        List<TopMoverRow> topProductsByQuantity(@Param("from") LocalDate from, @Param("to") LocalDate to,
-                        @Param("limit") int limit);
+        List<TopMoverRow> topProductsByQuantity(@Param("limit") int limit);
 
         // Top payers by revenue, between two dates. This is the "Top Clients" feature,
         // redefined: the invoice records the payer (insurer), never the individual, so
