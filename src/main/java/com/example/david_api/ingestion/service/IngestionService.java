@@ -15,10 +15,12 @@ import com.example.david_api.ingestion.repository.StagingProductRepository;
 import com.example.david_api.ingestion.repository.StagingSaleLineRepository;
 import com.example.david_api.ingestion.repository.StagingSaleRepository;
 import com.example.david_api.ingestion.repository.StagingStockRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
+// API key validation for every /api/v1/ingest/** request (GET and POST
+// alike) now happens once, up front, in ApiKeyAuthFilter — a request never
+// reaches these methods without a valid key, so they don't re-check it.
 @Service
 public class IngestionService {
     private final StagingProductRepository productRepository;
@@ -26,9 +28,6 @@ public class IngestionService {
     private final StagingSaleRepository saleRepository;
     private final StagingSaleLineRepository saleLineRepository;
     private final StagingStockRepository stockRepository;
-
-    @Value("${app.api-key}")
-    private String configuredApiKey;
 
     public IngestionService(StagingProductRepository productRepository,
                             StagingClientRepository clientRepository,
@@ -54,10 +53,7 @@ public class IngestionService {
         return saleRepository.findAll();
     }
 
-    public void saveSales(List<SaleDTO> sales, String pharmacyId, String apiKey) {
-        if (!apiKey.equals(configuredApiKey)) {
-            throw new RuntimeException("Unauthorized: invalid API key");
-        }
+    public void saveSales(List<SaleDTO> sales, String pharmacyId) {
         for (SaleDTO dto : sales) {
             if (saleRepository.existsBySourceInvoiceIdAndPharmacyId(dto.getSourceInvoiceId(), pharmacyId)) {
                 continue;
@@ -91,10 +87,7 @@ public class IngestionService {
         }
     }
 
-    public void saveClients(List<ClientDTO> clients, String pharmacyId, String apiKey) {
-        if (!apiKey.equals(configuredApiKey)) {
-            throw new RuntimeException("Unauthorized: invalid API key");
-        }
+    public void saveClients(List<ClientDTO> clients, String pharmacyId) {
         for (ClientDTO dto : clients) {
             if (clientRepository.existsBySourceAffiliationNumAndPharmacyId(dto.getSourceAffiliationNum(), pharmacyId)) {
                 continue;
@@ -115,15 +108,6 @@ public class IngestionService {
         return stockRepository.findAll();
     }
 
-    // Shared by the sync-complete endpoint, which has no staging rows of its
-    // own to save — it just needs the same API key check every other ingest
-    // endpoint does before it's allowed to trigger anything.
-    public void assertValidApiKey(String apiKey) {
-        if (!apiKey.equals(configuredApiKey)) {
-            throw new RuntimeException("Unauthorized: invalid API key");
-        }
-    }
-
     // Upsert, not append: staging_stock used to gain a brand-new row every
     // sync, forever, even when nothing about a lot had changed since the
     // last check. What every downstream query actually wants is current
@@ -131,10 +115,7 @@ public class IngestionService {
     // (item_id, batch_number, id_lot) and ignoring the rest. So now each
     // lot gets found by that same natural key and updated in place; a new
     // row is only ever inserted the first time this lot is ever seen.
-    public void saveStock(List<StockDTO> stockList, String pharmacyId, String apiKey) {
-        if (!apiKey.equals(configuredApiKey)) {
-            throw new RuntimeException("Unauthorized: invalid API key");
-        }
+    public void saveStock(List<StockDTO> stockList, String pharmacyId) {
         for (StockDTO dto : stockList) {
             StagingStock entity = stockRepository
                     .findByPharmacyIdAndItemIdAndBatchNumberAndIdLot(
@@ -171,10 +152,7 @@ public class IngestionService {
         }
     }
 
-    public void saveProducts(List<ProductDTO> products, String pharmacyId, String apiKey) {
-        if (!apiKey.equals(configuredApiKey)) {
-            throw new RuntimeException("Unauthorized: invalid API key");
-        }
+    public void saveProducts(List<ProductDTO> products, String pharmacyId) {
         for (ProductDTO dto : products) {
             if (productRepository.existsBySourceProductIdAndPharmacyId(dto.getSourceProductId(), pharmacyId)) {
                 continue;

@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+// Every route under /api/v1/ingest/** (except /health) is gated by
+// ApiKeyAuthFilter before it ever reaches these methods — X-Api-Key is
+// still required on every call, it's just no longer checked here.
 @RestController
 @RequestMapping("/api/v1/ingest")
 public class IngestionController {
@@ -39,9 +42,8 @@ public class IngestionController {
     @PostMapping("/stock")
     public ResponseEntity<String> ingestStock(
             @RequestBody List<StockDTO> stockList,
-            @RequestHeader("X-Pharmacy-ID") String pharmacyId,
-            @RequestHeader("X-Api-Key") String apiKey) {
-        ingestionService.saveStock(stockList, pharmacyId, apiKey);
+            @RequestHeader("X-Pharmacy-ID") String pharmacyId) {
+        ingestionService.saveStock(stockList, pharmacyId);
         return ResponseEntity.ok("Stock received: " + stockList.size());
     }
 
@@ -54,9 +56,7 @@ public class IngestionController {
     // immediately.
     @PostMapping("/sync-complete")
     public ResponseEntity<String> syncComplete(
-            @RequestHeader("X-Pharmacy-ID") String pharmacyId,
-            @RequestHeader("X-Api-Key") String apiKey) {
-        ingestionService.assertValidApiKey(apiKey);
+            @RequestHeader("X-Pharmacy-ID") String pharmacyId) {
         warehouseSyncService.triggerSyncAsync();
         return ResponseEntity.ok("Sync triggered");
     }
@@ -69,9 +69,8 @@ public class IngestionController {
     @PostMapping("/clients")
     public ResponseEntity<String> ingestClients(
             @RequestBody List<ClientDTO> clients,
-            @RequestHeader("X-Pharmacy-ID") String pharmacyId,
-            @RequestHeader("X-Api-Key") String apiKey) {
-        ingestionService.saveClients(clients, pharmacyId, apiKey);
+            @RequestHeader("X-Pharmacy-ID") String pharmacyId) {
+        ingestionService.saveClients(clients, pharmacyId);
         return ResponseEntity.ok("Clients received: " + clients.size());
     }
 
@@ -83,19 +82,17 @@ public class IngestionController {
     @PostMapping("/sales")
     public ResponseEntity<String> ingestSales(
             @RequestBody List<SaleDTO> sales,
-            @RequestHeader("X-Pharmacy-ID") String pharmacyId,
-            @RequestHeader("X-Api-Key") String apiKey) {
-        ingestionService.saveSales(sales, pharmacyId, apiKey);
+            @RequestHeader("X-Pharmacy-ID") String pharmacyId) {
+        ingestionService.saveSales(sales, pharmacyId);
         return ResponseEntity.ok("Sales received: " + sales.size());
     }
 
     @PostMapping("/products")
     public ResponseEntity<String> ingestProducts(
             @RequestBody List<ProductDTO> products,
-            @RequestHeader("X-Pharmacy-ID") String pharmacyId,
-            @RequestHeader("X-Api-Key") String apiKey) {
+            @RequestHeader("X-Pharmacy-ID") String pharmacyId) {
 
-        ingestionService.saveProducts(products, pharmacyId, apiKey);
+        ingestionService.saveProducts(products, pharmacyId);
         return ResponseEntity.ok("Products received: " + products.size());
 
     }
