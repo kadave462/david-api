@@ -98,21 +98,25 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         //      TOTAL stock, not just whichever lot happened to sync last.
         //      id_lot/batch_number/expiration_date can't be summed (they're
         //      text, not numbers) — one lot has to be picked to represent
-        //      them. NOT "whichever synced most recently": a product can
-        //      have a dozen+ sold-out lots alongside 1-2 that are actually
-        //      live, and after a big resync (everything landing within
-        //      minutes of each other, in whatever order the source query
-        //      happens to return rows) "most recent sync" is close to
-        //      arbitrary — it can just as easily point at a lot that's been
-        //      dead for years as one that's still on the shelf. Picking
-        //      quantity > 0 first, then soonest-expiring within that group,
-        //      answers a real question instead: of what's actually still in
-        //      stock, which lot needs attention first — matching how a
-        //      pharmacy sells FIFO (oldest/soonest-expiring stock first). If
-        //      every lot is sold out, falls back to the soonest-expired one
-        //      rather than an arbitrary pick. All three ARRAY_AGGs share the
-        //      same ORDER BY so batch_number/id_lot/expiration_date always
-        //      come from the SAME chosen lot, not three different ones.
+        //      them (batch_number/id_lot/expiration_date), plus a second
+        //      lot for the "what's coming in behind it" columns:
+        //
+        //      MAIN columns (id_lot/expiration_date/batch_number) = the
+        //      OLDEST live lot, if any lot is live — the one actually being
+        //      sold down right now, matching FIFO (oldest stock sells
+        //      first), and what the depletion-rate/days-remaining math is
+        //      about. If NONE are live, falls back to the NEWEST dead lot
+        //      that was never followed by a later delivery — i.e. the lot
+        //      that was actually in use right up until the product went
+        //      quiet, not an arbitrary or ancient one. (id_lot sorts
+        //      correctly as a plain string here because it's a fixed
+        //      6-digit YYMMDD code.)
+        //
+        //      NEWEST_* columns = the NEWEST live lot — purely informational
+        //      ("here's what's coming in behind the one being sold down"),
+        //      null whenever nothing is live (no live lot to report). When
+        //      only one lot is live, both the main and NEWEST_* columns
+        //      point at that same lot.
         //
         //      initial_quantity is summed over LIVE lots only (quantity > 0),
         //      not every lot the product has ever had. Confirmed on ONGUENT
@@ -144,9 +148,23 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                                         ELSE 0
                                    END                                                                                                         AS initial_quantity,
                                    SUM(quantity)                                                                                              AS quantity,
-                                   (ARRAY_AGG(batch_number     ORDER BY (quantity > 0) DESC, expiration_date::date ASC))[1]                    AS batch_number,
-                                   (ARRAY_AGG(id_lot           ORDER BY (quantity > 0) DESC, expiration_date::date ASC))[1]                    AS id_lot,
-                                   (ARRAY_AGG(expiration_date  ORDER BY (quantity > 0) DESC, expiration_date::date ASC))[1]                    AS expiration_date
+                                   (ARRAY_AGG(batch_number ORDER BY (quantity > 0) DESC,
+                                              CASE WHEN quantity > 0 THEN id_lot END ASC,
+                                              CASE WHEN quantity <= 0 THEN id_lot END DESC))[1]  AS batch_number,
+                                   (ARRAY_AGG(id_lot       ORDER BY (quantity > 0) DESC,
+                                              CASE WHEN quantity > 0 THEN id_lot END ASC,
+                                              CASE WHEN quantity <= 0 THEN id_lot END DESC))[1]  AS id_lot,
+                                   (ARRAY_AGG(expiration_date ORDER BY (quantity > 0) DESC,
+                                              CASE WHEN quantity > 0 THEN id_lot END ASC,
+                                              CASE WHEN quantity <= 0 THEN id_lot END DESC))[1]  AS expiration_date,
+                                   CASE WHEN SUM(quantity) > 0
+                                        THEN (ARRAY_AGG(id_lot ORDER BY (quantity > 0) DESC, id_lot DESC))[1]
+                                        ELSE NULL
+                                   END                                                                                                         AS newest_id_lot,
+                                   CASE WHEN SUM(quantity) > 0
+                                        THEN (ARRAY_AGG(expiration_date ORDER BY (quantity > 0) DESC, id_lot DESC))[1]
+                                        ELSE NULL
+                                   END                                                                                                         AS newest_expiration_date
                             FROM latest_per_lot
                             GROUP BY item_id
                         )
@@ -161,11 +179,13 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                                ll.id_lot                                 AS id_lot,
                                ll.quantity                               AS live_quantity,
                                ll.expiration_date                        AS expiration_date,
+                               ll.newest_id_lot                          AS newest_id_lot,
+                               ll.newest_expiration_date                 AS newest_expiration_date,
                                MAX(fs.invoice_time)                      AS last_sale
                         FROM fact_sale fs
                         JOIN dim_product dp ON fs.product_id = dp.id
                         LEFT JOIN latest_lot ll ON ll.item_id = dp.source_product_id
-                        GROUP BY dp.source_product_id, dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity, ll.expiration_date
+                        GROUP BY dp.source_product_id, dp.product_name, ll.initial_quantity, ll.batch_number, ll.id_lot, ll.quantity, ll.expiration_date, ll.newest_id_lot, ll.newest_expiration_date
                         ORDER BY SUM(fs.quantity) DESC
                         LIMIT :limit
                         """, nativeQuery = true)

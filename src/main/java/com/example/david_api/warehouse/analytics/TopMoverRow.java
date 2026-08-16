@@ -23,6 +23,15 @@ public interface TopMoverRow {
     Long getLiveQuantity();
     String getExpirationDate(); // from the same currently-open lot as the fields above; null if no matching lot
 
+    // The NEWEST live lot's own documented/expiration date — a second,
+    // purely informational pair alongside idLot/getExpirationDate above
+    // (which track the OLDEST live lot, the one actually being sold down).
+    // Null whenever there's no live lot at all (out-of-stock products don't
+    // have a "newest live lot" to report). See topProductsByQuantity's
+    // query comment for the full oldest/newest reasoning.
+    String getNewestIdLot();
+    String getNewestExpirationDate();
+
     // Most recent sale of this product within the requested date range
     // (MAX(fs.invoice_time)) — a plain aggregate, not tied to any lot.
     String getLastSale();
