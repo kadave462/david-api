@@ -113,6 +113,23 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
         //      rather than an arbitrary pick. All three ARRAY_AGGs share the
         //      same ORDER BY so batch_number/id_lot/expiration_date always
         //      come from the SAME chosen lot, not three different ones.
+        //
+        //      initial_quantity is summed over LIVE lots only (quantity > 0),
+        //      not every lot the product has ever had. Confirmed on ONGUENT
+        //      EMULSIFIANT (item 2439): 43 lots on record, 41 long dead, but
+        //      summing initial_quantity across all of them (145) against a
+        //      lot documented that same day made the depletion-rate formula
+        //      read "139 units sold in 1 day" — a multi-year cumulative total
+        //      divided by one day, purely because the representative lot was
+        //      brand new. Restricting the sum to live lots (initial 7, live
+        //      6) keeps initial_quantity and quantity describing the same
+        //      set of lots the depletion rate is actually about. When NONE
+        //      are live (quantity_all = 0), initial_quantity is reported as
+        //      0 too — not the full historical sum — so the row reads as a
+        //      clean "out of stock" (0/0) rather than a fabricated
+        //      percentage against lots that no longer exist on the shelf;
+        //      the frontend treats initial=0 as its own explicit "Out of
+        //      Stock" state rather than computing a depletion rate from it.
         @Query(value = """
                         WITH latest_per_lot AS (
                             SELECT DISTINCT ON (item_id, batch_number, id_lot)
@@ -122,7 +139,10 @@ public interface FactSaleRepository extends JpaRepository<FactSale, Long> {
                         ),
                         latest_lot AS (
                             SELECT item_id,
-                                   SUM(initial_quantity)                                                                                      AS initial_quantity,
+                                   CASE WHEN SUM(quantity) > 0
+                                        THEN SUM(initial_quantity) FILTER (WHERE quantity > 0)
+                                        ELSE 0
+                                   END                                                                                                         AS initial_quantity,
                                    SUM(quantity)                                                                                              AS quantity,
                                    (ARRAY_AGG(batch_number     ORDER BY (quantity > 0) DESC, expiration_date::date ASC))[1]                    AS batch_number,
                                    (ARRAY_AGG(id_lot           ORDER BY (quantity > 0) DESC, expiration_date::date ASC))[1]                    AS id_lot,
